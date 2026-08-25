@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#12233b">
+  <meta name="description" content="Arqueiro — jogo de arco e flecha com física, vento e 12 níveis. Roda no navegador, sem instalar nada.">
+  <title>Arqueiro — jogo de arco e flecha</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='14' fill='%23f5d23b'/><circle cx='16' cy='16' r='9' fill='%23e2453c'/><circle cx='16' cy='16' r='4' fill='%23fff'/></svg>">
+</head>
+<body>
+  <main id="app">
+    <canvas id="game" aria-label="Campo de tiro com arco e flecha"></canvas>
+
+    <button id="pause-button" type="button" aria-label="Pausar" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true" width="20" height="20">
+        <rect x="6" y="5" width="4" height="14" rx="1" fill="currentColor"></rect>
+        <rect x="14" y="5" width="4" height="14" rx="1" fill="currentColor"></rect>
+      </svg>
+    </button>
+
+    <div id="ui" hidden></div>
+
+    <noscript>
+      <p class="noscript">Este jogo precisa de JavaScript ativado.</p>
+    </noscript>
+  </main>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
