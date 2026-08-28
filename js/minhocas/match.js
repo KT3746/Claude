@@ -12,10 +12,10 @@ import { sfx } from '../engine/audio.js';
 import { gerarTerreno } from './terrain-gen.js';
 import { createTerrain } from './terrain.js';
 import { createTurnMachine, FASE } from './turn.js';
-import { ARMAS, armaPorId } from './weapons.js';
+import { ARMAS, MINI_FRAGMENTO, armaPorId, armaSeguinte } from './weapons.js';
 import { createProjectile, atualizarProjetil, projetilParado, desenharProjetil } from './projectile.js';
 import { explosao } from './damage.js';
-import { GRAVIDADE, ARRASTO } from './ballistics.js';
+import { GRAVIDADE, ARRASTO, interseccaoSegmentoCirculo } from './ballistics.js';
 import * as Worm from './worm.js';
 
 const NOMES = [
@@ -104,6 +104,8 @@ export function createMatch({
     times,
     todas,
     projeteis: [],
+    criaturas: [],  // corpos dirigíveis que andam sozinhos (a ovelha)
+    tracos: [],     // traços visuais de tiros instantâneos (escopeta, sniper)
     vento: 0,
     nivelAgua: terreno.nivelAgua,
     ativa: null,
@@ -215,11 +217,24 @@ export function createMatch({
     return houve;
   }
 
+  /**
+   * Uma mina assentada (`apoiado`) já não está "em jogo" para efeito de
+   * turno — ela é uma armadilha que fica no mapa por rodadas, esperando
+   * alguém chegar perto. Contá-la como projétil ativo travaria o turno para
+   * sempre, já que nada garante que ela vá explodir logo.
+   */
+  function bloqueiaTurno(p) {
+    return !(p.arma.assentaSemExplodir && p.apoiado);
+  }
+
   function contexto() {
     const vivas = times.filter((t) => t.viva);
+    const emJogo = estado.projeteis.filter(bloqueiaTurno);
     return {
       tudoParado: todas.every(Worm.estaParada) && estado.projeteis.every(projetilParado),
-      projeteisAtivos: estado.projeteis.length,
+      // A ovelha conta como "no ar" enquanto existir, mesmo andando parada
+      // no acumulador de física — senão o turno passaria com ela a meio caminho.
+      projeteisAtivos: emJogo.length + estado.criaturas.length,
       equipesVivas: vivas.length,
       equipeVencedora: vivas.length === 1 ? vivas[0] : null,
     };
@@ -271,6 +286,24 @@ export function createMatch({
 
     camera.addShake(Math.min(1, arma.raio * 0.22));
     sfx.explosao(arma.raio);
+
+    // Granada de fragmentação: a explosão principal acontece igual à de
+    // qualquer outra granada, e além dela nascem pedaços menores que se
+    // espalham e explodem sozinhos pouco depois.
+    if (arma.cacho) {
+      for (let i = 0; i < arma.cacho.quantidade; i += 1) {
+        const angulo = rng.range(0, Math.PI * 2);
+        const velocidade = rng.range(arma.cacho.velocidadeMin, arma.cacho.velocidadeMax);
+        estado.projeteis.push(createProjectile({
+          arma: MINI_FRAGMENTO,
+          x,
+          y,
+          vx: Math.cos(angulo) * velocidade,
+          vy: Math.abs(Math.sin(angulo)) * velocidade + 1.5, // sempre espalha para cima
+          pavio: arma.cacho.pavio,
+        }));
+      }
+    }
   }
 
   function respingar(x, y) {
@@ -318,6 +351,16 @@ export function createMatch({
       estado.arma = armaPorId(id);
     },
 
+    /** Percorre o arsenal com `[` `]`. Não pula para a arma oculta do cacho. */
+    trocarArmaRelativa(direcao) {
+      if (!turnos.podeAtirar || estado.carregando) return;
+      let proxima = estado.arma;
+      do {
+        proxima = armaSeguinte(proxima, direcao);
+      } while (proxima.oculta && proxima !== estado.arma);
+      estado.arma = proxima;
+    },
+
     ajustarPavio(segundos) {
       if (!turnos.podeAtirar) return;
       estado.pavio = Math.max(1, Math.min(5, segundos));
@@ -326,7 +369,8 @@ export function createMatch({
     /** Começa a carregar a força do tiro. */
     carregar() {
       if (!turnos.podeAtirar || !estado.ativa) return;
-      if (estado.arma.tipo === 'soltavel') {
+      // Soltável e hitscan não têm força para acumular: disparam no toque.
+      if (estado.arma.tipo === 'soltavel' || estado.arma.tipo === 'hitscan') {
         soltar();
         return;
       }
@@ -349,37 +393,109 @@ export function createMatch({
     const w = estado.ativa;
     if (!w || !turnos.podeAtirar) return;
     const arma = estado.arma;
-    const boca = Worm.bocaDaArma(w);
 
-    let projetil;
-    if (arma.tipo === 'soltavel') {
-      projetil = createProjectile({
-        arma,
-        x: w.x + w.direcao * 0.35,
-        y: w.y + 0.25,
-        vx: 0,
-        vy: 0,
-        dono: w,
-        pavio: arma.pavio,
-      });
+    estado.carregando = false;
+
+    if (arma.tipo === 'hitscan') {
+      disparoHitscan(w, arma);
+    } else if (arma.tipo === 'dirigivel' && arma.modo === 'andar') {
+      lancarOvelha(w, arma);
     } else {
-      const velocidade = arma.velocidadeMax * Math.max(0.12, estado.carga);
-      projetil = createProjectile({
+      const boca = Worm.bocaDaArma(w);
+      const carga = Math.max(0.12, estado.carga);
+      const solta = arma.tipo === 'soltavel';
+
+      estado.projeteis.push(createProjectile({
         arma,
-        x: boca.x,
-        y: boca.y,
-        vx: Math.cos(w.angulo) * w.direcao * velocidade,
-        vy: Math.sin(w.angulo) * velocidade,
+        x: solta ? w.x + w.direcao * 0.35 : boca.x,
+        y: solta ? w.y + 0.25 : boca.y,
+        vx: solta ? 0 : Math.cos(w.angulo) * w.direcao * arma.velocidadeMax * carga,
+        vy: solta ? 0 : Math.sin(w.angulo) * arma.velocidadeMax * carga,
         dono: w,
         pavio: arma.tipo === 'granada' ? estado.pavio : arma.pavio,
-      });
-      sfx.disparo();
+      }));
+      if (!solta) sfx.disparo();
     }
 
-    estado.projeteis.push(projetil);
-    estado.carregando = false;
     estado.carga = 0;
     turnos.disparou(arma);
+  }
+
+  /**
+   * Escopeta e sniper: sem tempo de voo, resolvidos no mesmo quadro do
+   * disparo. O terreno já sabe achar o primeiro ponto sólido no caminho
+   * (`terreno.raio`); falta só testar as minhocas no meio do caminho, porque
+   * a máscara não sabe nada sobre corpos.
+   */
+  function disparoHitscan(w, arma) {
+    const boca = Worm.bocaDaArma(w, 0.4);
+    const alcance = arma.alcanceMax ?? 40;
+
+    for (let i = 0; i < (arma.disparos ?? 1); i += 1) {
+      const desvio = arma.espalhamento ? rng.range(-arma.espalhamento, arma.espalhamento) : 0;
+      const angulo = w.angulo + desvio;
+      const destino = {
+        x: boca.x + Math.cos(angulo) * w.direcao * alcance,
+        y: boca.y + Math.sin(angulo) * alcance,
+      };
+
+      const impactoTerreno = terreno.raio(boca.x, boca.y, destino.x, destino.y);
+      let melhorT = impactoTerreno ? impactoTerreno.t : 1;
+      let alvo = null;
+
+      for (const outra of todas) {
+        if (!outra.vivo || outra === w) continue;
+        const centro = { x: outra.x, y: outra.y + Worm.ALTURA * 0.5 };
+        const t = interseccaoSegmentoCirculo(boca, destino, centro, Worm.LARGURA * 0.65);
+        if (t !== null && t < melhorT) {
+          melhorT = t;
+          alvo = outra;
+        }
+      }
+
+      const pontoFinal = {
+        x: boca.x + (destino.x - boca.x) * melhorT,
+        y: boca.y + (destino.y - boca.y) * melhorT,
+      };
+
+      estado.tracos.push({ x0: boca.x, y0: boca.y, x1: pontoFinal.x, y1: pontoFinal.y, vida: 0.12 });
+
+      if (alvo) {
+        alvo.vida -= arma.dano;
+        alvo.piscar = 0.4;
+        const dx = alvo.x - w.x || w.direcao;
+        Worm.empurrar(alvo, Math.sign(dx) * (arma.impulso ?? 0), (arma.impulso ?? 0) * 0.3);
+      }
+      if (arma.furoRaio) terreno.explodir(pontoFinal.x, pontoFinal.y, arma.furoRaio);
+    }
+
+    sfx.disparo();
+  }
+
+  /**
+   * A ovelha reaproveita direto as funções de movimento da minhoca: pula com
+   * o mesmo impulso, anda com o mesmo degrau, cai com o mesmo dano. Não
+   * precisa de física própria — só de um corpo com a forma certa e de um
+   * pavio que a IA da minhoca não tem motivo para conhecer.
+   */
+  function lancarOvelha(w, arma) {
+    const carga = Math.max(0.35, estado.carga || 0.6);
+    estado.criaturas.push({
+      arma,
+      dono: w,
+      vivo: true,
+      x: w.x + w.direcao * 0.4,
+      y: w.y + 0.15,
+      vx: w.direcao * arma.velocidadeMax * carga,
+      vy: 7 * carga,
+      estado: 'voando',
+      direcao: w.direcao,
+      tempoNoAr: 0,
+      quedaMaxima: 0,
+      restoDoPasso: 0,
+      pavio: arma.pavio,
+      tempoVivo: 0,
+    });
   }
 
   // ------------------------------------------------------------ update
@@ -408,7 +524,14 @@ export function createMatch({
     }
 
     atualizarProjeteis(dt);
+    atualizarCriaturas(dt);
     particles.update(dt);
+
+    for (let i = estado.tracos.length - 1; i >= 0; i -= 1) {
+      estado.tracos[i].vida -= dt;
+      if (estado.tracos[i].vida <= 0) estado.tracos.splice(i, 1);
+    }
+
     turnos.update(dt, contexto());
     seguirCamera(dt);
 
@@ -423,9 +546,38 @@ export function createMatch({
       const antes = Math.hypot(p.vx, p.vy);
       const r = atualizarProjetil(p, terreno, dt, ambiente());
 
-      // Rastro de fumaça do foguete.
+      // A mina não explode ao tocar — só quando algo vivo chega perto, e só
+      // depois do atraso de armar (senão explode em quem acabou de largá-la).
+      let explodiu = r === 'explodir';
+      if (!explodiu && p.arma.proximidade && p.tempoVivo > (p.arma.atraso ?? 0)) {
+        for (const w of todas) {
+          if (!w.vivo) continue;
+          if (Math.hypot(w.x - p.x, w.y - p.y) < p.arma.proximidade) {
+            explodiu = true;
+            break;
+          }
+        }
+      }
+
+      // Quem "explode ao encostar em qualquer coisa" (bazuca, morteiro,
+      // míssil) só testava contato com o TERRENO — uma minhoca no ar não é
+      // terreno, e sem gravidade o míssil atravessaria um alvo elevado para
+      // sempre. Aqui o corpo de uma minhoca também conta como "qualquer coisa".
+      if (!explodiu && !p.arma.pavio && !p.arma.assentaSemExplodir) {
+        for (const w of todas) {
+          if (!w.vivo || w === p.dono) continue;
+          const centro = { x: w.x, y: w.y + Worm.ALTURA * 0.5 };
+          if (Math.hypot(p.x - centro.x, p.y - centro.y) < Worm.LARGURA * 0.6) {
+            explodiu = true;
+            break;
+          }
+        }
+      }
+
+      // Rastro de fumaça do foguete (e do míssil guiado, que usa o mesmo desenho).
       p.fumaca -= dt;
-      if (p.arma.tipo === 'projetil' && p.fumaca <= 0) {
+      const ehFoguete = p.arma.tipo === 'projetil' || (p.arma.tipo === 'dirigivel' && p.arma.modo === 'reto');
+      if (ehFoguete && p.fumaca <= 0) {
         p.fumaca = 0.02;
         particles.spawn({
           x: p.x,
@@ -449,17 +601,63 @@ export function createMatch({
         continue;
       }
 
-      if (r === 'explodir') {
+      if (explodiu) {
         detonar(p.x, p.y, p.arma);
         estado.projeteis.splice(i, 1);
       }
     }
   }
 
+  /**
+   * A ovelha: mesma física de chão da minhoca (Worm.atualizar/andar), sem
+   * jogador nenhum segurando a tecla — anda sozinha até o pavio acabar ou
+   * até chegar perto de alguém vivo.
+   */
+  function atualizarCriaturas(dt) {
+    for (let i = estado.criaturas.length - 1; i >= 0; i -= 1) {
+      const c = estado.criaturas[i];
+      Worm.atualizar(c, terreno, dt, ambiente());
+      if (c.estado !== 'voando') Worm.andar(c, terreno, c.direcao, dt);
+
+      c.tempoVivo = (c.tempoVivo ?? 0) + dt;
+      c.pavio -= dt;
+
+      let explodiu = c.pavio <= 0;
+      if (!explodiu && c.arma.proximidade && c.tempoVivo > 0.5) {
+        for (const w of todas) {
+          if (!w.vivo) continue;
+          if (Math.hypot(w.x - c.x, w.y - (c.y + Worm.ALTURA * 0.5)) < c.arma.proximidade) {
+            explodiu = true;
+            break;
+          }
+        }
+      }
+
+      if (c.y < estado.nivelAgua) {
+        respingar(c.x, estado.nivelAgua);
+        sfx.respingo();
+        estado.criaturas.splice(i, 1);
+        continue;
+      }
+      if (explodiu) {
+        detonar(c.x, c.y + Worm.ALTURA * 0.3, c.arma);
+        estado.criaturas.splice(i, 1);
+      }
+    }
+  }
+
   function seguirCamera(dt) {
-    if (estado.projeteis.length > 0) {
+    if (estado.criaturas.length > 0) {
+      const alvo = estado.criaturas[0];
+      camera.lookAt(alvo.x, alvo.y + 1, 22);
+      return;
+    }
+    // Uma mina já assentada não puxa mais a câmera: ela fica no mapa como
+    // uma armadilha silenciosa, e o jogo segue acompanhando quem está jogando.
+    const emVoo = estado.projeteis.filter(bloqueiaTurno);
+    if (emVoo.length > 0) {
       // Segue o projétil mais alto — é o que o jogador está acompanhando.
-      const alvo = estado.projeteis.reduce((a, b) => (b.y > a.y ? b : a));
+      const alvo = emVoo.reduce((a, b) => (b.y > a.y ? b : a));
       camera.lookAt(alvo.x, alvo.y, 24);
       return;
     }
@@ -485,11 +683,60 @@ export function createMatch({
       }
     }
 
+    for (const c of estado.criaturas) desenharOvelha(ctx, c, camera);
+
     if (podeAgir() && estado.ativa) desenharMira(ctx);
 
     particles.draw(ctx, camera);
 
     for (const p of estado.projeteis) desenharProjetil(ctx, p, camera);
+    for (const t of estado.tracos) desenharTraco(ctx, t, camera);
+  }
+
+  /** A ovelha: uma minhoca branca e felpuda, sem arma nem barra de vida. */
+  function desenharOvelha(ctx, c, camera) {
+    const p = camera.toScreen(c.x, c.y);
+    const e = camera.scale;
+    const r = e * Worm.LARGURA * 0.5;
+
+    ctx.save();
+    ctx.fillStyle = 'rgba(0,0,0,0.2)';
+    ctx.beginPath();
+    ctx.ellipse(p.x, p.y, r * 1.1, r * 0.3, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#f4f1e8';
+    ctx.beginPath();
+    ctx.ellipse(p.x, p.y - r * 1.1, r * 1.15, r * 1.0, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#2a2a2a';
+    ctx.beginPath();
+    ctx.ellipse(p.x + c.direcao * r * 0.9, p.y - r * 1.05, r * 0.45, r * 0.32, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // O pavio piscando avisa quanto tempo falta.
+    const aceso = Math.floor(Date.now() / (c.pavio < 1.5 ? 100 : 300)) % 2 === 0;
+    ctx.fillStyle = aceso ? '#ff5e4d' : '#7a3830';
+    ctx.beginPath();
+    ctx.arc(p.x, p.y - r * 2, r * 0.22, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  /** O traço luminoso de um tiro instantâneo, sumindo em poucos quadros. */
+  function desenharTraco(ctx, t, camera) {
+    const a = camera.toScreen(t.x0, t.y0);
+    const b = camera.toScreen(t.x1, t.y1);
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, t.vida / 0.12);
+    ctx.strokeStyle = '#fff6c9';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.stroke();
+    ctx.restore();
   }
 
   function desenharCeu(ctx) {

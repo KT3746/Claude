@@ -20,7 +20,27 @@ export function createProjectile({ arma, x, y, vx = 0, vy = 0, dono = null, pavi
     fumaca: 0,
     giro: 0,
     apoiado: false,
+    tempoVivo: 0, // usado pelo atraso de armar da mina
   };
+}
+
+/** Quica no ponto de impacto, usando a normal do terreno. Compartilhado entre
+ * granadas com pavio e soltáveis que assentam sem explodir (a mina). */
+function quicarNoImpacto(p, terreno, r) {
+  p.x = r.impacto.livreX;
+  p.y = r.impacto.livreY;
+
+  const n = terreno.normalEm(r.impacto.x, r.impacto.y, 0.25);
+  const v = refletir(r.estado, n, p.arma.restituicao ?? 0.42, p.arma.atrito ?? 0.3);
+  p.vx = v.vx;
+  p.vy = v.vy;
+
+  // Quase parado sobre uma superfície: assenta em vez de tremer no lugar.
+  if (Math.hypot(p.vx, p.vy) < 0.6) {
+    p.vx = 0;
+    p.vy = 0;
+    p.apoiado = true;
+  }
 }
 
 /**
@@ -29,8 +49,13 @@ export function createProjectile({ arma, x, y, vx = 0, vy = 0, dono = null, pavi
  */
 export function atualizarProjetil(p, terreno, dt, env) {
   if (!p.vivo) return 'explodir';
+  p.tempoVivo += dt;
 
   const ambiente = p.arma.vento ? env : { ...env, vento: 0 };
+  // Míssil guiado: voo reto na mira, sem gravidade nem vento — não é
+  // balística, é um projétil dirigido, mesmo compartilhando a integração.
+  if (p.arma.tipo === 'dirigivel' && p.arma.modo === 'reto') ambiente.gravidade = 0;
+
   const r = avancar(p, dt, ambiente, (x, y) => terreno.solidoEm(x, y));
 
   p.giro += (Math.abs(p.vx) + Math.abs(p.vy)) * dt * 0.6;
@@ -49,7 +74,14 @@ export function atualizarProjetil(p, terreno, dt, env) {
     return 'voando';
   }
 
-  // Explode ao encostar (bazuca, morteiro).
+  // A mina assenta como uma granada sem pavio, mas nunca explode ao tocar —
+  // só quando algo chega perto (checado em match.js, que tem a lista de minhocas).
+  if (p.arma.assentaSemExplodir) {
+    quicarNoImpacto(p, terreno, r);
+    return 'voando';
+  }
+
+  // Explode ao encostar (bazuca, morteiro, míssil guiado).
   if (!p.arma.pavio) {
     p.x = r.impacto.x;
     p.y = r.impacto.y;
@@ -57,21 +89,7 @@ export function atualizarProjetil(p, terreno, dt, env) {
   }
 
   // Quica: volta ao último ponto livre e reflete na normal da superfície.
-  p.x = r.impacto.livreX;
-  p.y = r.impacto.livreY;
-
-  const n = terreno.normalEm(r.impacto.x, r.impacto.y, 0.25);
-  const v = refletir(r.estado, n, p.arma.restituicao ?? 0.42, p.arma.atrito ?? 0.3);
-  p.vx = v.vx;
-  p.vy = v.vy;
-
-  // Quase parado sobre uma superfície: assenta em vez de tremer no lugar.
-  if (Math.hypot(p.vx, p.vy) < 0.6) {
-    p.vx = 0;
-    p.vy = 0;
-    p.apoiado = true;
-  }
-
+  quicarNoImpacto(p, terreno, r);
   return 'voando';
 }
 
@@ -88,18 +106,31 @@ export function desenharProjetil(ctx, p, camera) {
   ctx.save();
   ctx.translate(s.x, s.y);
 
-  if (p.arma.tipo === 'projetil') {
-    // Foguete, apontado para onde vai.
+  if (p.arma.tipo === 'projetil' || (p.arma.tipo === 'dirigivel' && p.arma.modo === 'reto')) {
+    // Foguete, apontado para onde vai. O míssil guiado usa o mesmo desenho,
+    // só muda a cor do corpo.
     ctx.rotate(Math.atan2(-p.vy, p.vx));
-    ctx.fillStyle = '#d9dee4';
+    ctx.fillStyle = p.arma.modo === 'reto' ? '#8fb0d9' : '#d9dee4';
     ctx.beginPath();
     ctx.moveTo(r * 1.9, 0);
     ctx.lineTo(-r * 1.1, -r * 0.62);
     ctx.lineTo(-r * 1.1, r * 0.62);
     ctx.closePath();
     ctx.fill();
-    ctx.fillStyle = '#e2453c';
+    ctx.fillStyle = p.arma.modo === 'reto' ? '#3c6ba8' : '#e2453c';
     ctx.fillRect(-r * 1.2, -r * 0.62, r * 0.6, r * 1.24);
+  } else if (p.arma.assentaSemExplodir) {
+    // Mina: um disco achatado com uma luz que acelera ao armar.
+    ctx.fillStyle = '#3a3f45';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, r * 1.15, r * 0.6, 0, 0, Math.PI * 2);
+    ctx.fill();
+    const armada = p.tempoVivo > (p.arma.atraso ?? 0);
+    const aceso = Math.floor(Date.now() / (armada ? 140 : 500)) % 2 === 0;
+    ctx.fillStyle = aceso ? (armada ? '#ff5e4d' : '#ffd24a') : '#5a2f2a';
+    ctx.beginPath();
+    ctx.arc(0, -r * 0.1, r * 0.28, 0, Math.PI * 2);
+    ctx.fill();
   } else {
     ctx.rotate(p.giro);
     ctx.fillStyle = p.arma.tipo === 'soltavel' ? '#b8452f' : '#3f5a3a';

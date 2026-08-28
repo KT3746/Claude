@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  GRAVIDADE, lancar, passo, avancar, refletir, simular,
+  GRAVIDADE, lancar, passo, avancar, refletir, simular, interseccaoSegmentoCirculo,
 } from '../js/minhocas/ballistics.js';
 
 const SEM_ARRASTO = { gravidade: GRAVIDADE, arrasto: 0, vento: 0 };
@@ -102,4 +102,32 @@ test('simular para no primeiro impacto e registra onde', () => {
   assert.ok(r.impacto, 'a trajetória tem de terminar no chão');
   assert.ok(r.impacto.y <= 0.05);
   assert.ok(r.pontos.length > 2);
+});
+
+test('interseccaoSegmentoCirculo acha o ponto mais próximo do disparo', () => {
+  const centro = { x: 5, y: 0 };
+  const t = interseccaoSegmentoCirculo({ x: 0, y: 0 }, { x: 10, y: 0 }, centro, 1);
+  assert.ok(t !== null);
+  assert.ok(Math.abs(t - 0.4) < 1e-9, `deveria bater na borda do círculo em t=0,4, deu ${t}`);
+});
+
+test('interseccaoSegmentoCirculo não acerta quem está fora da linha de tiro', () => {
+  const centro = { x: 5, y: 3 };
+  assert.equal(interseccaoSegmentoCirculo({ x: 0, y: 0 }, { x: 10, y: 0 }, centro, 1), null);
+});
+
+test('interseccaoSegmentoCirculo não acerta um alvo atrás do atirador', () => {
+  const centro = { x: -5, y: 0 };
+  assert.equal(interseccaoSegmentoCirculo({ x: 0, y: 0 }, { x: 10, y: 0 }, centro, 1), null);
+});
+
+test('interseccaoSegmentoCirculo não acerta um alvo além do alcance do tiro', () => {
+  const centro = { x: 50, y: 0 };
+  assert.equal(interseccaoSegmentoCirculo({ x: 0, y: 0 }, { x: 10, y: 0 }, centro, 1), null);
+});
+
+test('um atirador dentro do próprio círculo-alvo acerta em t=0', () => {
+  const centro = { x: 0.3, y: 0 };
+  const t = interseccaoSegmentoCirculo({ x: 0, y: 0 }, { x: 10, y: 0 }, centro, 1);
+  assert.equal(t, 0);
 });

@@ -101,4 +101,6 @@ const HANDLED_KEYS = new Set([
   'Digit3',
   'Digit4',
   'Digit5',
+  'BracketLeft',
+  'BracketRight',
 ]);

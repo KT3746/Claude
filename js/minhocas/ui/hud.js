@@ -254,7 +254,7 @@ export function desenharDica(ctx, partida, camera) {
   // Na tela estreita o rodapé já é do vento e da arma: a dica sobe, e encurta.
   const texto = estreito
     ? '← → anda · ↑ ↓ mira · Espaço atira'
-    : '← → anda · ↑ ↓ mira · Espaço segura e solta · Enter pula · 1 2 3 arma';
+    : '← → anda · ↑ ↓ mira · Espaço segura e solta · Enter pula · [ ] arma';
   const baseY = estreito ? camera.height - 62 : camera.height - 16;
 
   ctx.save();

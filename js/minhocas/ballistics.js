@@ -99,6 +99,41 @@ export function refletir(estado, n, restituicao = 0.45, atrito = 0.25) {
 }
 
 /**
+ * Interseção do segmento p0→p1 com um círculo (centro, raio).
+ *
+ * Usado pelas armas de precisão (escopeta, sniper): o disparo já sabe onde
+ * bate no terreno via `raycast`, e isto resolve se alguma minhoca no caminho
+ * é atingida antes — devolve o menor `t` em [0, 1], ou null se não cruza.
+ */
+export function interseccaoSegmentoCirculo(p0, p1, centro, raio) {
+  const dx = p1.x - p0.x;
+  const dy = p1.y - p0.y;
+  const fx = p0.x - centro.x;
+  const fy = p0.y - centro.y;
+
+  // O ponto de partida já está dentro do círculo: acerto imediato em t = 0.
+  // Sem isto, a quadrática abaixo devolveria o ponto de SAÍDA do círculo —
+  // à queima-roupa, o tiro pareceria atravessar o alvo para acertar atrás dele.
+  if (fx * fx + fy * fy <= raio * raio) return 0;
+
+  const a = dx * dx + dy * dy;
+  if (a < 1e-9) return null; // segmento degenerado (ponto)
+
+  const b = 2 * (fx * dx + fy * dy);
+  const c = fx * fx + fy * fy - raio * raio;
+  const discriminante = b * b - 4 * a * c;
+  if (discriminante < 0) return null;
+
+  const raizD = Math.sqrt(discriminante);
+  const t1 = (-b - raizD) / (2 * a);
+  const t2 = (-b + raizD) / (2 * a);
+
+  if (t1 >= 0 && t1 <= 1) return t1;
+  if (t2 >= 0 && t2 <= 1) return t2;
+  return null;
+}
+
+/**
  * Simula a trajetória inteira. Serve para a linha de mira e para os testes.
  *
  * @returns {{pontos:Array<{x:number,y:number}>, estado:object, tempo:number, impacto:object|null}}

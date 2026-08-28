@@ -167,13 +167,14 @@ function comandosDiscretos() {
   if (input.wasPressed('Enter')) comandos.pular('frente');
   if (input.wasPressed('Backspace')) comandos.pular('costas');
 
-  // Os dígitos trocam de arma; com a granada na mão, ajustam o pavio.
-  for (let n = 1; n <= 5; n += 1) {
-    if (!input.wasPressed(`Digit${n}`)) continue;
-    if (jogo.arma.ajustavel && n <= 5) comandos.ajustarPavio(n);
-    if (n === 1) comandos.trocarArma('bazuca');
-    else if (n === 2) comandos.trocarArma('granada');
-    else if (n === 3) comandos.trocarArma('dinamite');
+  // `[` `]` percorrem o arsenal inteiro; os dígitos, com uma arma de pavio
+  // ajustável na mão (granada, fragmentação), mudam quantos segundos faltam.
+  if (input.wasPressed('BracketLeft')) comandos.trocarArmaRelativa(-1);
+  if (input.wasPressed('BracketRight')) comandos.trocarArmaRelativa(1);
+  if (jogo.arma.ajustavel) {
+    for (let n = 1; n <= 5; n += 1) {
+      if (input.wasPressed(`Digit${n}`)) comandos.ajustarPavio(n);
+    }
   }
 
   // Espaço e toque carregam a força; soltar dispara.

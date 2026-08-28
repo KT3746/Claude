@@ -117,8 +117,8 @@ export function createScreens(root, actions) {
         ['Força do tiro', 'segure Espaço e solte'],
         ['Pular', 'Enter'],
         ['Cambalhota para trás', 'Backspace'],
-        ['Trocar de arma', '1 bazuca · 2 granada · 3 dinamite'],
-        ['Pavio da granada', '1 a 5 (com a granada na mão)'],
+        ['Trocar de arma', '[ e ] percorrem o arsenal'],
+        ['Pavio da granada', '1 a 5, com uma granada na mão'],
         ['Pausar', 'P'],
       ]));
 
