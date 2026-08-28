@@ -1,8 +1,8 @@
 # Minhocas
 
 Artilharia por turnos no estilo *Worms*: equipes de minhocas de capacete, uma
-jogando por vez, atirando bazuca, granada e dinamite umas nas outras num
-cenário que se destrói a cada tiro — até sobrar uma equipe em pé.
+jogando por vez, com um arsenal de dez armas — da bazuca ao míssil guiado —
+num cenário que se destrói a cada tiro, até sobrar uma equipe em pé.
 
 Mesma casca do Arqueiro: **HTML5 Canvas, ES modules, sem build, sem
 dependências e sem um único arquivo de imagem ou de som.**
@@ -26,9 +26,24 @@ quando chega a vez dela.
 | Força do tiro | segure **Espaço** e solte |
 | Pular | Enter |
 | Cambalhota para trás | Backspace |
-| Trocar de arma | 1 bazuca · 2 granada · 3 dinamite |
-| Pavio da granada | 1 a 5, com a granada na mão |
+| Trocar de arma | `[` e `]` percorrem o arsenal |
+| Pavio da granada | 1 a 5, com uma granada na mão |
 | Pausar | P |
+
+### O arsenal
+
+| Arma | Tipo | O que faz |
+| --- | --- | --- |
+| Bazuca | projétil | sofre vento |
+| Morteiro | projétil | mais lento, estrago maior |
+| Granada | granada | quica, pavio ajustável |
+| Frag. em cacho | granada | explode e espalha 5 pedaços menores |
+| Dinamite | soltável | larga no pé, pavio de 5 s |
+| Mina | soltável | não explode ao tocar o chão — arma sozinha e detona por proximidade |
+| Escopeta | hitscan | 2 tiros instantâneos, curto alcance |
+| Rifle sniper | hitscan | 1 tiro instantâneo, longo alcance |
+| Ovelha | dirigível | pousa e anda sozinha até explodir |
+| Míssil guiado | dirigível | voo reto na mira, ignora vento e gravidade |
 
 > **Ainda não dá para jogar no celular.** O layout se adapta a retrato e
 > paisagem, mas os controles de toque são do marco 8 — hoje o jogo é de
@@ -39,7 +54,7 @@ quando chega a vez dela.
 - **45 segundos** por turno (ou 30, ou 60 — dá para escolher no menu). O
   relógio congela enquanto o tiro está no ar.
 - Depois do tiro sobram **3 segundos para correr**. Aproveite.
-- O **vento** entorta a bazuca. Não entorta a granada nem a dinamite.
+- O **vento** entorta a bazuca e o morteiro. O resto do arsenal ignora vento.
 - Cair de muito alto machuca. A **água mata na hora**.
 - Uma minhoca que chega a zero **explode**, e a explosão dela pode derrubar
   as vizinhas. Mortes em cadeia são parte do jogo.
@@ -87,7 +102,7 @@ js/minhocas/ballistics.js    integração e colisão varrida (puro, testado)
 js/minhocas/damage.js        dano e empurrão             (puro, testado)
 js/minhocas/worm.js          estados e desenho da minhoca (movimento testado)
 js/minhocas/turn.js          máquina de turnos           (puro, testado)
-js/minhocas/weapons.js       a tabela de armas           (dados)
+js/minhocas/weapons.js       a tabela de armas           (dados, testado)
 js/minhocas/projectile.js    execução dos tipos de arma
 js/minhocas/match.js         junta tudo: mundo, equipes, regras
 js/minhocas/ui/              HUD no canvas, telas no DOM
@@ -100,13 +115,15 @@ node --test        # ou: npm test
 ```
 
 Cobrem o gerador com semente, as primitivas da máscara, a geração do mapa, a
-balística (inclusive o projétil rápido que não pode atravessar parede), a
-curva de dano, o movimento da minhoca e a máquina de turnos inteira — tudo sem
-DOM e sem navegador.
+balística (inclusive o projétil rápido que não pode atravessar parede nem
+atravessar uma minhoca no ar), a curva de dano, a tabela de armas, o
+movimento da minhoca e a máquina de turnos inteira — tudo sem DOM e sem
+navegador.
 
 ## O que ainda não existe
 
-Este é o primeiro marco jogável. Falta o arsenal completo (escopeta, morteiro,
-ovelha, ataque aéreo, mina, viga), a corda ninja, o jetpack, o teleporte, as
-caixas de paraquedas, a IA para jogar sozinho e os controles de toque. O
-desenho de cada um está em [`docs/PLANO-TRINCHEIRA.md`](../docs/PLANO-TRINCHEIRA.md).
+Falta o tipo `utilitario` do arsenal — corda ninja, jetpack, teleporte, viga
+de construção — que tem mecânica própria grande o bastante para ser o marco
+seguinte. Falta também o ataque aéreo, as caixas de paraquedas, a IA para
+jogar sozinho e os controles de toque. O desenho de cada um está em
+[`docs/PLANO-TRINCHEIRA.md`](../docs/PLANO-TRINCHEIRA.md).
