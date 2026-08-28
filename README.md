@@ -1,5 +1,9 @@
 # Arqueiro
 
+> **Neste repositório há dois jogos.** Este README é do **Arqueiro**. O outro é
+> [**Minhocas**](minhocas/README.md), de artilharia por turnos no estilo
+> *Worms*, em `/minhocas/` — mesma casca, mesmo motor, sem dependências.
+
 Jogo de arco e flecha em HTML5 Canvas: mire, leia o vento, acerte o X.
 Roda direto no navegador, no computador e no celular. **Sem build, sem
 dependências, sem instalar nada.**
