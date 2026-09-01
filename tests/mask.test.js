@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  createMask, at, solidAt, setAt, carveCircle, fillCircle, regrowGrass,
+  createMask, at, solidAt, setAt, carveCircle, fillCircle, fillRect, regrowGrass,
   circleHits, raycast, normalAt,
   AR, TERRA, GRAMA, ROCHA, GRAMA_ESPESSURA,
 } from '../js/minhocas/mask.js';
@@ -129,4 +129,36 @@ test('fillCircle escreve o material pedido', () => {
   fillCircle(mask, 20, 15, 5, ROCHA);
   assert.equal(at(mask, 20, 15), ROCHA);
   assert.equal(at(mask, 20, 25), AR);
+});
+
+test('fillRect preenche o retângulo pedido, e só ele', () => {
+  const mask = createMask(40, 30, AR);
+  const rect = fillRect(mask, 10, 10, 20, 15, TERRA);
+
+  assert.deepEqual(rect, { x0: 10, y0: 10, x1: 20, y1: 15 });
+  assert.equal(at(mask, 15, 12), TERRA, 'dentro do retângulo');
+  assert.equal(at(mask, 9, 12), AR, 'fora, à esquerda');
+  assert.equal(at(mask, 21, 12), AR, 'fora, à direita');
+  assert.equal(at(mask, 15, 9), AR, 'fora, acima');
+  assert.equal(at(mask, 15, 16), AR, 'fora, abaixo');
+});
+
+test('fillRect aceita cantos em qualquer ordem', () => {
+  const mask = createMask(40, 30, AR);
+  fillRect(mask, 20, 15, 10, 10, TERRA); // x1 < x0
+  assert.equal(at(mask, 15, 12), TERRA);
+});
+
+test('fillRect não sobrescreve rocha', () => {
+  const mask = createMask(40, 30, AR);
+  setAt(mask, 15, 12, ROCHA);
+  fillRect(mask, 10, 10, 20, 15, TERRA);
+  assert.equal(at(mask, 15, 12), ROCHA, 'rocha é indestrutível mesmo para construção');
+});
+
+test('fillRect é recortado na borda do mapa sem estourar o array', () => {
+  const mask = createMask(40, 30, AR);
+  assert.doesNotThrow(() => fillRect(mask, -10, -10, 5, 5, TERRA));
+  assert.doesNotThrow(() => fillRect(mask, 35, 25, 60, 60, TERRA));
+  assert.equal(mask.data.length, 40 * 30);
 });

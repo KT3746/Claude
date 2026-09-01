@@ -168,6 +168,18 @@ export const sfx = {
     setTimeout(() => tone({ freq: 660, duration: 0.14, volume: 0.1, type: 'sine' }), 90);
   },
 
+  /** Corda ninja disparada — um estalo curto e seco. */
+  corda() {
+    noiseBurst({ duration: 0.08, volume: 0.25, filterHz: 2200, type: 'highpass' });
+    tone({ freq: 500, sweepTo: 700, duration: 0.06, volume: 0.1, type: 'square' });
+  },
+
+  /** Teleporte — um "warp" subindo rápido. */
+  teleporte() {
+    tone({ freq: 220, sweepTo: 1400, duration: 0.22, volume: 0.16, type: 'sine' });
+    noiseBurst({ duration: 0.2, volume: 0.15, filterHz: 3000, type: 'highpass' });
+  },
+
   /** Clique de interface. */
   click() {
     tone({ freq: 520, duration: 0.06, volume: 0.12, type: 'square' });

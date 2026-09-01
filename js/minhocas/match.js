@@ -17,6 +17,7 @@ import { createProjectile, atualizarProjetil, projetilParado, desenharProjetil }
 import { explosao } from './damage.js';
 import { GRAVIDADE, ARRASTO, interseccaoSegmentoCirculo } from './ballistics.js';
 import * as Worm from './worm.js';
+import * as Rope from './rope.js';
 
 const NOMES = [
   'Tico', 'Bala', 'Rabo', 'Zé', 'Pipa', 'Nino', 'Vovô', 'Chico',
@@ -114,6 +115,8 @@ export function createMatch({
     pavio: 3,
     carga: 0,
     carregando: false,
+    corda: null,            // {x,y,vx,vy,pivos,sentidos,L,limiteMin,limiteMax} enquanto presa
+    jetpackCombustivel: 0,
     mensagem: '',
     tempoMensagem: 0,
     motionEnabled,
@@ -122,6 +125,8 @@ export function createMatch({
     fimDeJogo: false,
     vencedor: null,
   };
+
+  const COMBUSTIVEL_JETPACK = armaPorId('jetpack').combustivel;
 
   const ambiente = () => ({ gravidade: GRAVIDADE, arrasto: ARRASTO, vento: estado.vento });
 
@@ -134,6 +139,8 @@ export function createMatch({
       aoPreparar() {
         estado.carga = 0;
         estado.carregando = false;
+        estado.corda = null;
+        estado.jetpackCombustivel = COMBUSTIVEL_JETPACK;
         estado.arma = ARMAS[0];
         estado.pavio = ARMAS[1].pavio;
         estado.vento = Math.round(rng.range(-9, 9) * 10) / 10;
@@ -327,11 +334,36 @@ export function createMatch({
   const comandos = {
     andar(dir, dt) {
       if (!podeAgir()) return;
+
+      // Na corda, ←/→ não andam — dão um empurrão para "bombear" o balanço.
+      if (estado.corda) {
+        estado.corda.vx += dir * 5 * dt;
+        estado.ativa.direcao = dir;
+        return;
+      }
+      // De jetpack ligado e no ar, ←/→ empurram de lado em vez de andar
+      // (Worm.andar já não faz nada com a minhoca voando, então isto só
+      // acrescenta controle, nunca compete com o andar normal no chão).
+      if (estado.arma.acao === 'jetpack' && estado.ativa.estado === 'voando') {
+        estado.ativa.vx += dir * estado.arma.empuxoLateral * dt;
+        estado.ativa.direcao = dir;
+        return;
+      }
       Worm.andar(estado.ativa, terreno, dir, dt);
     },
 
     mirar(delta) {
       if (!podeAgir()) return;
+
+      // Presa na corda, ↑/↓ encolhem/alongam em vez de mirar — é assim que
+      // se sobe e desce pendurado.
+      if (estado.corda) {
+        estado.corda = Rope.ajustarComprimento(estado.corda, -delta * 4, {
+          comprimentoMin: estado.corda.limiteMin,
+          comprimentoMax: estado.corda.limiteMax,
+        });
+        return;
+      }
       const w = estado.ativa;
       w.angulo = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, w.angulo + delta));
     },
@@ -347,13 +379,13 @@ export function createMatch({
     },
 
     trocarArma(id) {
-      if (!turnos.podeAtirar || estado.carregando) return;
+      if (!turnos.podeAtirar || estado.carregando || estado.corda) return;
       estado.arma = armaPorId(id);
     },
 
     /** Percorre o arsenal com `[` `]`. Não pula para a arma oculta do cacho. */
     trocarArmaRelativa(direcao) {
-      if (!turnos.podeAtirar || estado.carregando) return;
+      if (!turnos.podeAtirar || estado.carregando || estado.corda) return;
       let proxima = estado.arma;
       do {
         proxima = armaSeguinte(proxima, direcao);
@@ -366,11 +398,24 @@ export function createMatch({
       estado.pavio = Math.max(1, Math.min(5, segundos));
     },
 
-    /** Começa a carregar a força do tiro. */
+    /** Começa a carregar a força do tiro (ou dispara na hora, para quem não carrega). */
     carregar() {
       if (!turnos.podeAtirar || !estado.ativa) return;
+      const arma = estado.arma;
+
+      if (arma.acao === 'corda') {
+        if (estado.corda) largarCorda();
+        else lancarCorda();
+        return;
+      }
+      if (arma.acao === 'teleporte') {
+        usarTeleporte();
+        return;
+      }
+      if (arma.acao === 'jetpack') return; // liga com impulsoJetpack(), não por aqui
+
       // Soltável e hitscan não têm força para acumular: disparam no toque.
-      if (estado.arma.tipo === 'soltavel' || estado.arma.tipo === 'hitscan') {
+      if (arma.tipo === 'soltavel' || arma.tipo === 'hitscan') {
         soltar();
         return;
       }
@@ -383,10 +428,87 @@ export function createMatch({
       if (!estado.carregando) return;
       soltar();
     },
+
+    /** Chamado a cada quadro em que o jogador segura o botão do jetpack. */
+    impulsoJetpack(dt) {
+      if (!podeAgir() || estado.arma.acao !== 'jetpack' || estado.jetpackCombustivel <= 0) return;
+      const w = estado.ativa;
+      const gasto = Math.min(dt, estado.jetpackCombustivel);
+      estado.jetpackCombustivel -= gasto;
+
+      if (w.estado !== 'voando') {
+        w.estado = 'voando';
+        w.quedaMaxima = 0;
+        w.tempoNoAr = 0;
+      }
+      w.vy += estado.arma.empuxo * gasto;
+    },
   };
 
   function podeAgir() {
     return turnos.podeControlar && estado.ativa?.vivo && !estado.fimDeJogo;
+  }
+
+  /** Dispara a corda na direção da mira. Se não achar onde prender, avisa e não gasta nada. */
+  function lancarCorda() {
+    const w = estado.ativa;
+    const arma = estado.arma;
+    const boca = Worm.bocaDaArma(w, 0.3);
+    const alcance = 60; // bem além do comprimento máximo — quem decide onde prende é o raio
+    const alvoX = boca.x + Math.cos(w.angulo) * w.direcao * alcance;
+    const alvoY = boca.y + Math.sin(w.angulo) * alcance;
+
+    const nova = Rope.lancar(
+      { x: w.x, y: w.y, vx: w.vx, vy: w.vy },
+      alvoX, alvoY,
+      (x0, y0, x1, y1) => terreno.raio(x0, y0, x1, y1),
+    );
+
+    if (!nova) {
+      anunciar('Sem onde prender.', 1);
+      return;
+    }
+
+    nova.limiteMin = arma.comprimentoMin;
+    nova.limiteMax = arma.comprimentoMax;
+    nova.L = Math.max(nova.limiteMin, Math.min(nova.limiteMax, nova.L));
+    estado.corda = nova;
+    w.estado = 'corda';
+    sfx.corda();
+  }
+
+  /** Larga a corda: a minhoca sai voando com a velocidade que tinha. */
+  function largarCorda() {
+    if (!estado.corda) return;
+    const livre = Rope.soltar(estado.corda);
+    const w = estado.ativa;
+    w.x = livre.x;
+    w.y = livre.y;
+    w.vx = livre.vx;
+    w.vy = livre.vy;
+    w.estado = 'voando';
+    estado.corda = null;
+  }
+
+  /** Some no lugar e aparece onde a mira aponta, se houver espaço. */
+  function usarTeleporte() {
+    const w = estado.ativa;
+    const alcance = estado.arma.alcanceMax;
+    const destX = w.x + Math.cos(w.angulo) * w.direcao * alcance;
+    const destY = w.y + Math.sin(w.angulo) * alcance;
+
+    if (terreno.solidoEm(destX, destY)) {
+      anunciar('Sem espaço para aparecer ali.', 1);
+      return;
+    }
+
+    w.x = destX;
+    w.y = destY;
+    w.vx = 0;
+    w.vy = 0;
+    w.estado = 'voando';
+    w.quedaMaxima = 0;
+    sfx.teleporte();
   }
 
   function soltar() {
@@ -504,6 +626,24 @@ export function createMatch({
     estado.tempoAgua += dt;
     if (estado.tempoMensagem > 0) estado.tempoMensagem -= dt;
 
+    // Se o turno acabou (relógio zerou) enquanto a corda estava presa, solta
+    // sozinha — senão a minhoca ficaria pendurada para sempre e o turno
+    // nunca teria como assentar.
+    if (estado.corda && turnos.fase !== FASE.JOGANDO) largarCorda();
+
+    if (estado.corda) {
+      estado.corda = Rope.passo(estado.corda, dt, {
+        raio: (x0, y0, x1, y1) => terreno.raio(x0, y0, x1, y1),
+        comprimentoMin: estado.corda.limiteMin,
+        comprimentoMax: estado.corda.limiteMax,
+      });
+      const w = estado.ativa;
+      w.x = estado.corda.x;
+      w.y = estado.corda.y;
+      w.vx = estado.corda.vx;
+      w.vy = estado.corda.vy;
+    }
+
     for (const w of todas) {
       if (w.piscar > 0) w.piscar -= dt;
       const queda = Worm.atualizar(w, terreno, dt, ambiente());
@@ -601,6 +741,16 @@ export function createMatch({
         continue;
       }
 
+      // A viga não explode nem espera gatilho: assentou, vira terreno.
+      if (p.arma.construir && p.apoiado) {
+        const { largura, altura } = p.arma.construir;
+        terreno.construir(p.x, p.y, largura, altura);
+        camera.addShake(0.12);
+        sfx.quique();
+        estado.projeteis.splice(i, 1);
+        continue;
+      }
+
       if (explodiu) {
         detonar(p.x, p.y, p.arma);
         estado.projeteis.splice(i, 1);
@@ -685,7 +835,8 @@ export function createMatch({
 
     for (const c of estado.criaturas) desenharOvelha(ctx, c, camera);
 
-    if (podeAgir() && estado.ativa) desenharMira(ctx);
+    if (estado.corda) desenharCorda(ctx);
+    else if (podeAgir() && estado.ativa) desenharMira(ctx);
 
     particles.draw(ctx, camera);
 
@@ -801,6 +952,38 @@ export function createMatch({
       else ctx.lineTo(x, topo + onda);
     }
     ctx.stroke();
+  }
+
+  /** A corda: uma linha por cima de cada pivô empilhado, até a minhoca. */
+  function desenharCorda(ctx) {
+    const c = estado.corda;
+    const w = estado.ativa;
+    if (!c || !w) return;
+
+    ctx.save();
+    ctx.strokeStyle = '#e8d9a0';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+
+    const primeiro = camera.toScreen(c.pivos[0].x, c.pivos[0].y);
+    ctx.moveTo(primeiro.x, primeiro.y);
+    for (let i = 1; i < c.pivos.length; i += 1) {
+      const p = camera.toScreen(c.pivos[i].x, c.pivos[i].y);
+      ctx.lineTo(p.x, p.y);
+    }
+    const ponta = camera.toScreen(w.x, w.y + Worm.ALTURA * 0.5);
+    ctx.lineTo(ponta.x, ponta.y);
+    ctx.stroke();
+
+    // Um pino em cada pivô, para ficar claro onde a corda pegou.
+    ctx.fillStyle = '#e8d9a0';
+    for (const p of c.pivos) {
+      const s = camera.toScreen(p.x, p.y);
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
   }
 
   /**

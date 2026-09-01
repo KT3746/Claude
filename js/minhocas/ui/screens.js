@@ -119,6 +119,9 @@ export function createScreens(root, actions) {
         ['Cambalhota para trás', 'Backspace'],
         ['Trocar de arma', '[ e ] percorrem o arsenal'],
         ['Pavio da granada', '1 a 5, com uma granada na mão'],
+        ['Corda ninja', 'Espaço prende e solta · ↑ ↓ encolhem/alongam'],
+        ['Jetpack', 'segure Espaço para subir · ← → de lado'],
+        ['Teleporte', 'Espaço aparece onde a mira aponta'],
         ['Pausar', 'P'],
       ]));
 

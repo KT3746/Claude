@@ -1,8 +1,8 @@
 # Minhocas
 
 Artilharia por turnos no estilo *Worms*: equipes de minhocas de capacete, uma
-jogando por vez, com um arsenal de dez armas — da bazuca ao míssil guiado —
-num cenário que se destrói a cada tiro, até sobrar uma equipe em pé.
+jogando por vez, com um arsenal de 14 armas e ferramentas — da bazuca à corda
+ninja — num cenário que se destrói a cada tiro, até sobrar uma equipe em pé.
 
 Mesma casca do Arqueiro: **HTML5 Canvas, ES modules, sem build, sem
 dependências e sem um único arquivo de imagem ou de som.**
@@ -28,6 +28,9 @@ quando chega a vez dela.
 | Cambalhota para trás | Backspace |
 | Trocar de arma | `[` e `]` percorrem o arsenal |
 | Pavio da granada | 1 a 5, com uma granada na mão |
+| Corda ninja | Espaço prende e solta · ↑ ↓ encolhem/alongam |
+| Jetpack | segure Espaço para subir · ← → de lado |
+| Teleporte | Espaço aparece onde a mira aponta |
 | Pausar | P |
 
 ### O arsenal
@@ -44,6 +47,14 @@ quando chega a vez dela.
 | Rifle sniper | hitscan | 1 tiro instantâneo, longo alcance |
 | Ovelha | dirigível | pousa e anda sozinha até explodir |
 | Míssil guiado | dirigível | voo reto na mira, ignora vento e gravidade |
+| Corda ninja | utilitário | pivôs empilhados — balança e prende de novo nas quinas |
+| Jetpack | utilitário | voo controlado, combustível recarrega a cada turno |
+| Teleporte | utilitário | aparece instantaneamente onde a mira aponta |
+| Viga | soltável | larga no pé e vira degrau de terreno sólido |
+
+Usar um utilitário **não passa a vez** — a minhoca continua sob seu controle
+depois. Se o tempo do turno acabar com a corda ainda presa, ela solta
+sozinha.
 
 > **Ainda não dá para jogar no celular.** O layout se adapta a retrato e
 > paisagem, mas os controles de toque são do marco 8 — hoje o jogo é de
@@ -85,6 +96,13 @@ verdade, com colisão testada no segmento percorrido (senão um foguete rápido
 atravessaria uma parede fina entre dois quadros). A colisão usa cinco sondas —
 pés, dois flancos em duas alturas e a cabeça.
 
+**A corda ninja é pivôs empilhados**, não uma mola: o disparo acha o primeiro
+ponto sólido no caminho e a minhoca fica presa a essa distância. Se o segmento
+pivô→minhoca esbarra numa quina, o ponto de dobra vira um pivô novo e a corda
+encolhe para o resto; quando o balanço reabre para o lado de onde veio, o pivô
+do topo é removido. Tudo isso é uma função pura só sobre posição, velocidade e
+a pilha de pivôs — dá para testar sem terreno de verdade nenhum.
+
 **Nada usa `Math.random()`.** Todo sorteio passa por um gerador com semente, o
 que dá mapas reproduzíveis, testes determinísticos e deixa a porta aberta para
 replays e para multijogador de passo travado.
@@ -101,6 +119,7 @@ js/minhocas/terrain.js       mundo em metros + render em blocos
 js/minhocas/ballistics.js    integração e colisão varrida (puro, testado)
 js/minhocas/damage.js        dano e empurrão             (puro, testado)
 js/minhocas/worm.js          estados e desenho da minhoca (movimento testado)
+js/minhocas/rope.js          corda ninja: pivôs empilhados (puro, testado)
 js/minhocas/turn.js          máquina de turnos           (puro, testado)
 js/minhocas/weapons.js       a tabela de armas           (dados, testado)
 js/minhocas/projectile.js    execução dos tipos de arma
@@ -117,13 +136,11 @@ node --test        # ou: npm test
 Cobrem o gerador com semente, as primitivas da máscara, a geração do mapa, a
 balística (inclusive o projétil rápido que não pode atravessar parede nem
 atravessar uma minhoca no ar), a curva de dano, a tabela de armas, o
-movimento da minhoca e a máquina de turnos inteira — tudo sem DOM e sem
-navegador.
+movimento da minhoca, a corda ninja (empilhar e desempilhar pivô, balanço sem
+esticar) e a máquina de turnos inteira — tudo sem DOM e sem navegador.
 
 ## O que ainda não existe
 
-Falta o tipo `utilitario` do arsenal — corda ninja, jetpack, teleporte, viga
-de construção — que tem mecânica própria grande o bastante para ser o marco
-seguinte. Falta também o ataque aéreo, as caixas de paraquedas, a IA para
-jogar sozinho e os controles de toque. O desenho de cada um está em
+Falta o ataque aéreo, as caixas de paraquedas, a IA para jogar sozinho e os
+controles de toque. O desenho de cada um está em
 [`docs/PLANO-TRINCHEIRA.md`](../docs/PLANO-TRINCHEIRA.md).

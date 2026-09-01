@@ -9,7 +9,7 @@
 
 import { createChunks } from '../engine/chunks.js';
 import {
-  at, solidAt, carveCircle, circleHits, raycast, normalAt,
+  at, solidAt, carveCircle, fillRect, regrowGrass, circleHits, raycast, normalAt,
   AR, TERRA, GRAMA, ROCHA,
 } from './mask.js';
 
@@ -167,6 +167,22 @@ export function createTerrain({ mask, alturas, nivelAgua, nascimentos, ppm }) {
       if (!rect) return false;
       blocos.markRect(rect.x0, rect.y0, rect.x1, rect.y1);
       return true;
+    },
+
+    /**
+     * Constrói um bloco sólido de `largura` × `altura` metros centrado em
+     * (x, y) — é o que a viga vira ao assentar. Ganha casca de grama igual a
+     * qualquer outro terreno novo, para não destoar visualmente.
+     */
+    construir(x, y, largura, altura) {
+      const x0 = mx(x - largura / 2);
+      const x1 = mx(x + largura / 2);
+      const y0 = my(y + altura / 2);
+      const y1 = my(y - altura / 2);
+      const rect = fillRect(mask, x0, y0, x1, y1, TERRA);
+      regrowGrass(mask, { ...rect, y1: rect.y1 + 4 });
+      blocos.markRect(rect.x0, rect.y0, rect.x1, rect.y1 + 4);
+      return rect;
     },
 
     /**

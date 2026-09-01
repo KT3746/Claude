@@ -19,11 +19,49 @@ test('toda arma tem um id único e um tipo reconhecido pelo motor', () => {
 
 test('arma de área (projetil, granada, soltavel, dirigivel) tem raio, dano e impulso', () => {
   for (const arma of ARMAS) {
-    if (arma.tipo === 'hitscan') continue;
+    // hitscan não explode; utilitário não faz dano; a viga assenta sem
+    // explodir e vira terreno, não tem raio de dano nenhum.
+    if (arma.tipo === 'hitscan' || arma.tipo === 'utilitario' || arma.construir) continue;
     assert.ok(arma.raio > 0, `${arma.id} sem raio de explosão`);
     assert.ok(arma.dano > 0, `${arma.id} sem dano`);
     assert.ok(arma.impulso >= 0, `${arma.id} com impulso inválido`);
   }
+});
+
+test('utilitário não faz dano e nunca encerra o turno sozinho', () => {
+  const utilitarios = ARMAS.filter((a) => a.tipo === 'utilitario');
+  assert.equal(utilitarios.length, 3, 'esperava corda, jetpack e teleporte');
+  for (const arma of utilitarios) {
+    assert.equal(arma.dano, undefined, `${arma.id} não devia causar dano`);
+    assert.equal(arma.encerraTurno, false, `${arma.id} não pode encerrar o turno ao usar`);
+    assert.ok(['corda', 'jetpack', 'teleporte'].includes(arma.acao), `${arma.id} com ação desconhecida`);
+  }
+});
+
+test('a corda tem comprimento mínimo e máximo coerentes', () => {
+  const corda = armaPorId('corda');
+  assert.ok(corda.comprimentoMin > 0);
+  assert.ok(corda.comprimentoMax > corda.comprimentoMin);
+});
+
+test('o jetpack tem combustível e empuxo positivos', () => {
+  const jetpack = armaPorId('jetpack');
+  assert.ok(jetpack.combustivel > 0);
+  assert.ok(jetpack.empuxo > 0);
+  assert.ok(jetpack.empuxoLateral > 0);
+});
+
+test('o teleporte tem alcance máximo', () => {
+  assert.ok(armaPorId('teleporte').alcanceMax > 0);
+});
+
+test('a viga assenta sem explodir e declara o tamanho do bloco que constrói', () => {
+  const viga = armaPorId('viga');
+  assert.equal(viga.tipo, 'soltavel');
+  assert.equal(viga.assentaSemExplodir, true);
+  assert.ok(viga.construir.largura > 0);
+  assert.ok(viga.construir.altura > 0);
+  assert.equal(viga.dano, undefined, 'a viga não é arma de dano');
 });
 
 test('arma hitscan tem alcance, disparos e dica de furo no terreno', () => {

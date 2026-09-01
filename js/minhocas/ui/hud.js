@@ -167,8 +167,16 @@ function desenharArma(ctx, estado, l) {
 
   ctx.font = '500 10px system-ui, sans-serif';
   ctx.fillStyle = '#9fb0c0';
-  const detalhe = estado.arma.ajustavel ? `pavio ${estado.pavio}s` : estado.arma.dica;
+  const detalhe = detalheDaArma(estado);
   ctx.fillText(recortar(ctx, detalhe, largura - 20), x + 10, y + 23);
+}
+
+/** O que mostrar na linha de baixo da caixa da arma: estado, não só a dica. */
+function detalheDaArma(estado) {
+  if (estado.corda) return `comprimento: ${estado.corda.L.toFixed(1)} m`;
+  if (estado.arma.acao === 'jetpack') return `combustível: ${Math.max(0, estado.jetpackCombustivel).toFixed(1)} s`;
+  if (estado.arma.ajustavel) return `pavio ${estado.pavio}s`;
+  return estado.arma.dica;
 }
 
 /** Corta um texto com reticências para caber na largura pedida. */

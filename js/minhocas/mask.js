@@ -110,6 +110,26 @@ export function fillCircle(mask, cx, cy, radius, material = TERRA) {
 }
 
 /**
+ * Preenche um retângulo com um material — a viga de construção vira isto.
+ * Rocha não é sobrescrita, pelo mesmo motivo de `carveCircle`: ela segura a
+ * borda do mapa.
+ */
+export function fillRect(mask, x0, y0, x1, y1, material = TERRA) {
+  const ix0 = Math.max(0, Math.floor(Math.min(x0, x1)));
+  const ix1 = Math.min(mask.width - 1, Math.ceil(Math.max(x0, x1)));
+  const iy0 = Math.max(0, Math.floor(Math.min(y0, y1)));
+  const iy1 = Math.min(mask.height - 1, Math.ceil(Math.max(y0, y1)));
+
+  for (let y = iy0; y <= iy1; y += 1) {
+    const linha = y * mask.width;
+    for (let x = ix0; x <= ix1; x += 1) {
+      if (mask.data[linha + x] !== ROCHA) mask.data[linha + x] = material;
+    }
+  }
+  return { x0: ix0, y0: iy0, x1: ix1, y1: iy1 };
+}
+
+/**
  * Refaz a casca de grama numa região: pixel sólido com ar até
  * `GRAMA_ESPESSURA` acima vira grama, o resto vira terra. É o que faz a
  * borda de cada cratera nova ganhar verde sozinha.

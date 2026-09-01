@@ -155,6 +155,12 @@ function comandosContinuos(dt) {
   const fino = input.isDown('ShiftLeft') || input.isDown('ShiftRight') ? 0.25 : 1;
   if (input.isDown('ArrowUp') || input.isDown('KeyW')) comandos.mirar(1.5 * dt * fino);
   if (input.isDown('ArrowDown') || input.isDown('KeyS')) comandos.mirar(-1.5 * dt * fino);
+
+  // O jetpack empurra enquanto Espaço fica segurado — diferente de carregar
+  // força, que só acontece ao soltar.
+  if (partida.estado.arma.acao === 'jetpack' && input.isDown('Space')) {
+    comandos.impulsoJetpack(dt);
+  }
 }
 
 function comandosDiscretos() {

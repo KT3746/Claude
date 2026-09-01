@@ -119,7 +119,7 @@ function passoHorizontal(terreno, w, dir) {
  * duas vezes e meia mais rápido do que a velocidade configurada.
  */
 export function andar(w, terreno, dir, dt) {
-  if (!w.vivo || w.estado === 'voando') return;
+  if (!w.vivo || w.estado === 'voando' || w.estado === 'corda') return;
   if (dir !== w.direcao) w.restoDoPasso = 0;
   w.direcao = dir;
   w.estado = 'andando';
@@ -136,7 +136,7 @@ export function andar(w, terreno, dir, dt) {
 
 /** Pulo curto para frente ou cambalhota para trás. */
 export function pular(w, terreno, tipo = 'frente') {
-  if (!w.vivo || w.estado === 'voando') return false;
+  if (!w.vivo || w.estado === 'voando' || w.estado === 'corda') return false;
   if (!apoiada(terreno, w.x, w.y)) return false;
   const p = PULOS[tipo] ?? PULOS.frente;
   w.restoDoPasso = 0;
@@ -165,6 +165,10 @@ export function empurrar(w, ix, iy) {
  */
 export function atualizar(w, terreno, dt, env) {
   if (!w.vivo) return null;
+
+  // Presa na corda: quem move a minhoca é `rope.js`, via match.js. Aqui só
+  // não fazemos nada — nem zerar velocidade, nem tentar andar no chão.
+  if (w.estado === 'corda') return null;
 
   if (w.estado !== 'voando') {
     w.vx = 0;

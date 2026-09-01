@@ -172,6 +172,56 @@ export const ARMAS = [
     miravel: true,
     dica: 'Voa reto na mira. Ignora vento e gravidade.',
   },
+  {
+    id: 'corda',
+    nome: 'Corda ninja',
+    tipo: 'utilitario',
+    acao: 'corda',
+    municao: Infinity,
+    encerraTurno: false,      // usar a corda não passa a vez
+    miravel: true,
+    comprimentoMax: 45,
+    comprimentoMin: 1.5,
+    dica: 'Mira numa saliência e atira. Espaço de novo solta. ↑ ↓ encolhem e alongam.',
+  },
+  {
+    id: 'jetpack',
+    nome: 'Jetpack',
+    tipo: 'utilitario',
+    acao: 'jetpack',
+    municao: Infinity,
+    encerraTurno: false,
+    miravel: false,
+    combustivel: 3.5,         // segundos de impulso por turno
+    empuxo: 13,
+    empuxoLateral: 7,
+    dica: 'Segure Espaço para subir. ← → empurram de lado.',
+  },
+  {
+    id: 'teleporte',
+    nome: 'Teleporte',
+    tipo: 'utilitario',
+    acao: 'teleporte',
+    municao: Infinity,
+    encerraTurno: false,
+    miravel: true,
+    alcanceMax: 16,
+    dica: 'Aparece onde a mira aponta.',
+  },
+  {
+    id: 'viga',
+    nome: 'Viga',
+    tipo: 'soltavel',
+    municao: Infinity,
+    vento: false,
+    assentaSemExplodir: true, // não explode: vira chão ao assentar
+    construir: { largura: 2.6, altura: 0.5 },
+    restituicao: 0.05,
+    atrito: 1,
+    encerraTurno: true,
+    miravel: false,
+    dica: 'Larga no chão e vira degrau sólido.',
+  },
 ];
 
 /**
