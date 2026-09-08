@@ -1,16 +1,23 @@
-# Arqueiro — contexto do projeto
+# Jogos do KT3746 — contexto do projeto
 
-Jogo de arco e flecha em HTML5 Canvas, em português. Estático: **sem build, sem
-dependências, sem `npm install`**. Publicado no GitHub Pages via GitHub Actions.
+Repositório de jogos em HTML5 Canvas, em português, cada um na sua pasta,
+compartilhando um motor comum em `js/engine/`. Estático: **sem build, sem
+dependências, sem `npm install`**. Publicado no GitHub Pages via GitHub
+Actions.
 
-**Atenção: o usuário renomeia o repositório com frequência.** Já foi
-`desktop-tutorial`, depois `Arco-e-Flecha`, depois `Claude`. O identificador
-interno que nunca muda é **1342942892**. Renomear muda o endereço do jogo
-(`https://kt3746.github.io/<nome-atual>/`) e derruba o link antigo — se ele
-disser que o jogo abre mas não responde a cliques, **a primeira suspeita é que
-ele está num link antigo**, com o navegador mostrando uma cópia em cache da
-tela sem o JavaScript. Confirme o nome atual antes de passar qualquer link, e
-pegue o endereço real do último deploy em
+**Atenção: o usuário renomeia e reorganiza repositórios com frequência.**
+Este aqui já foi `desktop-tutorial`, depois `Arco-e-Flecha`, depois `Claude`
+(id interno **1342942892**). Em 2026-09-08 o jogo Arqueiro, que morava na
+raiz, foi **extraído para o repositório dedicado `Claude-Arqueiro`**
+(id interno **1361028025**, <https://github.com/KT3746/Claude-Arqueiro>,
+publicado em <https://kt3746.github.io/Claude-Arqueiro/>) — se alguém
+perguntar pelo Arqueiro, é lá que ele está agora, não aqui. Renomear ou
+mudar de repositório muda o endereço do jogo
+(`https://kt3746.github.io/<nome-atual>/`) e derruba o link antigo — se
+disserem que um jogo abre mas não responde a cliques, **a primeira suspeita
+é que é um link antigo**, com o navegador mostrando uma cópia em cache sem o
+JavaScript. Confirme o nome do repositório atual antes de passar qualquer
+link, e pegue o endereço real do último deploy em
 `GET /repos/{owner}/{repo}/deployments/{id}/statuses` → `environment_url`.
 
 O usuário é **iniciante em programação e usa celular Android**. Explique em
@@ -21,60 +28,47 @@ repositório), que nenhuma ferramenta alcança.
 ## Como rodar e testar
 
 ```bash
-python3 -m http.server 8000   # abre em http://localhost:8000
-node --test                   # 22 testes, runner nativo do Node, sem instalar nada
+python3 -m http.server 8000   # abre em http://localhost:8000, depois entre na pasta do jogo
+node --test                   # runner nativo do Node, sem instalar nada
 ```
 
-`js/game/physics.js` e `js/game/scoring.js` são funções puras sem DOM — por isso
-dá para testá-las no runner nativo. O resto se testa dirigindo o jogo num
-navegador real.
+Os módulos de lógica pura (sem DOM) de cada jogo são testados no runner
+nativo; o resto se testa dirigindo o jogo num navegador real.
 
 **Chromium para testes de navegador**: já instalado em
 `/opt/pw-browsers/chromium-1194/chrome-linux/chrome`. Instale o Playwright no
 diretório de rascunho (`npm install playwright --no-save`) e passe
 `executablePath` apontando para esse caminho — não rode `playwright install`.
 
-**Lição aprendida, importante**: testes com clique de *mouse* NÃO pegam bugs de
-*toque*. Um bug real (nenhum botão respondia no celular) passou por vários
-testes de mouse. Para qualquer coisa de interface, teste com toque de verdade:
-`browser.newPage({ ...devices['Pixel 5'] })` e `page.touchscreen.tap()`, ou
-eventos de toque de baixo nível via `Input.dispatchTouchEvent` (CDP) para
-arrastar.
+**Lição aprendida, importante**: testes com clique de *mouse* NÃO pegam bugs
+de *toque*. Um bug real (nenhum botão respondia no celular, no Arqueiro)
+passou por vários testes de mouse. Para qualquer coisa de interface, teste
+com toque de verdade: `browser.newPage({ ...devices['Pixel 5'] })` e
+`page.touchscreen.tap()`, ou eventos de toque de baixo nível via
+`Input.dispatchTouchEvent` (CDP) para arrastar.
 
 ## Arquitetura
 
 ```
-index.html            página e canvas
-css/style.css         casca e telas de interface
-js/main.js            liga tudo: canvas, entrada, loop, telas; expõe window.__game (depuração)
-js/engine/loop.js     loop de passo fixo (beginFrame → step* → render → endFrame)
-js/engine/input.js    mouse/toque/teclado unificados num "pointer" + ações
-js/engine/camera.js   mundo (metros, y para cima) ↔ tela (pixels, y para baixo)
+js/engine/loop.js       loop de passo fixo (beginFrame → step* → render → endFrame)
+js/engine/input.js      mouse/toque/teclado unificados num "pointer" + ações
+js/engine/camera.js     mundo (metros, y para cima) ↔ tela (pixels, y para baixo)
+js/engine/rng.js        gerador com semente, para terrenos/partidas reproduzíveis
+js/engine/chunks.js     terreno em chunks (usado pelo Minhocas)
 js/engine/{audio,particles,storage}.js
-js/game/physics.js    integração da flecha (gravidade, arrasto, vento)   [PURO, testado]
-js/game/scoring.js    anéis, X, combo, estrelas                          [PURO, testado]
-js/game/level.js      máquina de estados: aiming → flying → settling → finished
-js/game/levels.js     os 12 níveis, em tabela declarativa
-js/game/{arrow,bow,target,scenery}.js
-js/ui/hud.js          HUD desenhado no canvas (pontos, vento, luneta)
-js/ui/screens.js      menus como elementos do DOM (acessíveis por teclado)
-tests/                testes do runner nativo do Node
+minhocas/               casca do jogo Minhocas (index.html, css/)
+js/minhocas/            lógica do Minhocas: física de projétil (ballistics.js),
+                         dano, arsenal (weapons.js), corda (rope.js), terreno
+                         destrutível (mask.js/terrain.js/terrain-gen.js),
+                         máquina de turnos (turn.js), partida (match.js)
+js/minhocas/ui/         HUD e telas do Minhocas (própria, não compartilhada)
+docs/PLANO-TRINCHEIRA.md  plano de design do Minhocas
+tests/                  testes do runner nativo do Node
 ```
 
-Decisões que não são óbvias:
-
-- **Velocidade da flecha 16–46 m/s** (`bow.js`), não os ~60 m/s reais: na
-  velocidade real a trajetória fica quase reta nessas distâncias e a mira perde
-  a graça.
-- **Colisão testa o segmento percorrido no passo**, não a posição final — sem
-  isso a flecha atravessa o alvo entre dois quadros.
-- **O vento age sobre a velocidade relativa ao ar**, então vento de cauda e de
-  frente saem do mesmo cálculo, sem regra extra.
-- `arrow.stop()` zera `vx`/`vy`, então o ângulo do impacto é congelado em
-  `finalHeading` antes disso — o getter `heading` leria `atan2(0,0) = 0`.
-- Em `input.js`, `onUp` só chama `preventDefault()` quando encerra um arrasto
-  **nosso** (`pointer.down` era true). Cancelar um `touchend` qualquer suprime o
-  `click` sintético do navegador e mata todos os botões da interface no celular.
+`js/engine/*` é compartilhado entre os jogos que vivem neste repositório —
+não mexa nele pensando só no jogo que você está vendo na tela, confira quem
+mais importa o módulo antes de mudar a assinatura de uma função.
 
 ## Fluxo de trabalho
 
@@ -82,24 +76,21 @@ Decisões que não são óbvias:
   ficar verde, e mergeie. O usuário já autorizou esse fluxo várias vezes.
 - Todo push na `main` publica no GitHub Pages automaticamente.
 - `.github/workflows/pages.yml` verifica se o Pages está habilitado antes de
-  tentar publicar, e sai com sucesso (deixando um `::notice`) se não estiver —
-  o token do workflow não tem permissão para habilitar o Pages sozinho.
-- Verifique de verdade antes de afirmar que funciona: rode os testes, dirija o
-  jogo no navegador, confira o resultado real do deploy pela API do GitHub.
-  A rede desta sandbox **bloqueia `github.io`**, então não dá para abrir o site
-  publicado daqui — confirme pelo `deployments/{id}/statuses` da API.
+  tentar publicar, e sai com sucesso (deixando um `::notice`) se não estiver
+  — o token do workflow não tem permissão para habilitar o Pages sozinho.
+- Verifique de verdade antes de afirmar que funciona: rode os testes, dirija
+  o jogo no navegador, confira o resultado real do deploy pela API do
+  GitHub. A rede desta sandbox **bloqueia `github.io`**, então não dá para
+  abrir o site publicado daqui — confirme pelo `deployments/{id}/statuses`
+  da API.
 
 ## Estado atual
 
-Jogo completo e no ar: 12 níveis, modo prática, progresso salvo, vento,
-alvos móveis, obstáculos, balões de bônus, luneta, som sintetizado.
-
-Bugs já corrigidos: ângulo da flecha cravada, arrasto perdido ao segurar o
-clique entre estados, botão errado na vitória do último nível, e o toque que
-não respondia em nenhum botão.
-
-**Nenhuma pendência aberta.** Houve um relato de que o toque não respondia
-mesmo depois da correção (commit `bded752`), mas a causa era o link antigo: o
-repositório tinha sido renomeado no meio-tempo e o navegador mostrava uma cópia
-em cache da tela, sem o JavaScript. Confirmado pelo usuário funcionando no link
-atual. A correção do `preventDefault` está verificada com toque real.
+- **Minhocas** (`/minhocas/`): completo, artilharia por turnos estilo
+  *Worms*, terreno destrutível, 14 armas, corda ninja, jetpack, teleporte.
+- **Arqueiro**: extraído para o repositório `Claude-Arqueiro` em
+  2026-09-08 — não vive mais aqui.
+- Havia uma PR aberta (#7) trazendo o jogo **Campo Minado** para
+  `/campo-minado/`, criada antes desta extração; se ainda estiver aberta,
+  ela provavelmente precisa de rebase contra esta mudança antes de
+  mergear — confira o estado da PR antes de mexer nela.

@@ -1,7 +1,7 @@
 {
-  "name": "arqueiro",
+  "name": "kt3746-jogos",
   "version": "1.0.0",
-  "description": "Jogo de arco e flecha em HTML5 Canvas — sem build, sem dependências.",
+  "description": "Jogos em HTML5 Canvas, cada um na sua pasta — sem build, sem dependências.",
   "type": "module",
   "private": true,
   "scripts": {
