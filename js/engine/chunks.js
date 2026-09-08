@@ -7,12 +7,37 @@
  * ser refeito — uma cratera de 130 px não custa um bloco de 512 × 512.
  */
 
+/**
+ * Um contexto 2D de mentira, para quando não há Canvas nenhum disponível
+ * (testes em Node). Aceita as mesmas chamadas de `pintarBloco` sem desenhar
+ * de verdade — o que a lógica de jogo precisa é a contabilidade de blocos
+ * sujos, nunca o pixel final.
+ */
+function contextoFalso() {
+  return {
+    createImageData: (w, h) => ({
+      width: w,
+      height: h,
+      data: new Uint8ClampedArray(Math.max(0, w) * Math.max(0, h) * 4),
+    }),
+    putImageData() {},
+    drawImage() {},
+    fillRect() {},
+    clearRect() {},
+  };
+}
+
 function makeCanvas(width, height) {
   if (typeof OffscreenCanvas === 'function') return new OffscreenCanvas(width, height);
-  const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
-  return canvas;
+  if (typeof document !== 'undefined') {
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    return canvas;
+  }
+  // Sem navegador nenhum por perto: um canvas de mentira, só para o resto
+  // do código poder chamar `.getContext('2d')` sem quebrar.
+  return { width, height, getContext: () => contextoFalso() };
 }
 
 /**

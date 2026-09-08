@@ -47,6 +47,8 @@ export function createWorm({ nome, equipe, x, y }) {
     restoDoPasso: 0,       // sobra de movimento menor que um pixel         // maior velocidade de queda desde que saiu do chão
     afogando: false,
     piscar: 0,
+    quadrosResvalandoSemMover: 0, // ver comentário em `atualizar()`
+    travada: false,               // idem — presa numa fresta, sem contar como "voando" pro turno
   };
 }
 
@@ -67,6 +69,19 @@ export function colide(terreno, x, y) {
 /** Tem chão logo abaixo dos pés? */
 export function apoiada(terreno, x, y) {
   return terreno.solidoEm(x, y - 0.04);
+}
+
+/**
+ * Só a base da cápsula (sem os flancos) — usado para decidir se um pouso
+ * "por velocidade baixa" é de verdade um pouso em cima de alguma coisa, e
+ * não só o flanco da cápsula roçando numa parede ao lado (uma cratera
+ * cavada rente à borda do mapa, por exemplo, deixa exatamente essa quina).
+ * Sem esta distinção, uma minhoca podia oscilar para sempre entre 'voando'
+ * e 'parada' no mesmo lugar, encostada de lado numa parede, sem cair para
+ * o chão de verdade — achado pelo teste de estresse (fuzz.test.js).
+ */
+function tocaPeloFundo(terreno, x, y) {
+  return terreno.solidoEm(x, y + 0.06);
 }
 
 // -------------------------------------------------------------- movimento
@@ -173,6 +188,7 @@ export function atualizar(w, terreno, dt, env) {
   if (w.estado !== 'voando') {
     w.vx = 0;
     w.vy = 0;
+    w.travada = false;
     if (!apoiada(terreno, w.x, w.y)) {
       w.estado = 'voando';
       w.quedaMaxima = 0;
@@ -190,6 +206,8 @@ export function atualizar(w, terreno, dt, env) {
   }
 
   w.tempoNoAr += dt;
+  const xInicio = w.x;
+  const yInicio = w.y;
   const semVento = { ...env, vento: 0 }; // minhoca não é levada pelo vento
   const r = avancar(w, dt, semVento, (x, y) => colide(terreno, x, y));
 
@@ -200,6 +218,8 @@ export function atualizar(w, terreno, dt, env) {
     w.y = r.estado.y;
     w.vx = r.estado.vx;
     w.vy = r.estado.vy;
+    w.quadrosResvalandoSemMover = 0;
+    w.travada = false;
     return null;
   }
 
@@ -210,27 +230,82 @@ export function atualizar(w, terreno, dt, env) {
   const velocidade = Math.hypot(r.estado.vx, r.estado.vy);
   const queda = w.quedaMaxima;
 
-  if (velocidade < PARADA || apoiada(terreno, w.x, w.y)) {
+  if (apoiada(terreno, w.x, w.y) || (velocidade < PARADA && tocaPeloFundo(terreno, w.x, w.y))) {
     w.vx = 0;
     w.vy = 0;
     w.estado = 'parada';
     w.tempoNoAr = 0;
+    w.quadrosResvalandoSemMover = 0;
+    w.travada = false;
     const dano = danoDeQueda(queda);
     w.quedaMaxima = 0;
     return dano > 0 ? { dano, causa: 'queda' } : null;
   }
+
+  // Rede de segurança: quando o quadro inteiro de movimento cabe dentro de
+  // uma única amostra de colisão (`avancar()` testa só o PONTO FINAL, sem
+  // fração livre nenhuma) e esse ponto já está encostado em terreno, a
+  // minhoca fica na mesma posição, quadro após quadro — e para certos
+  // ângulos de normal (uma quina a 45°, por exemplo) a reflexão devolve de
+  // volta EXATAMENTE a energia que a gravidade acrescentou naquele quadro,
+  // sem nunca decair. É um ponto fixo de verdade da física (`refletir()` com
+  // os coeficientes usados aqui não garante perda de energia para toda
+  // normal possível), não um bug de estado — então não adianta forçar
+  // `estado = 'parada'` aqui: no quadro seguinte a checagem lá em cima
+  // (`!apoiada(...)`) devolveria a minhoca pra 'voando' de novo, porque de
+  // fato não há chão de verdade sob ela (é uma fresta, não um pouso), e o
+  // turno voltaria a travar — só que agora balançando entre 'parada' e
+  // 'voando' em vez de ficar preso só em 'voando'. Foi assim que o teste de
+  // estresse (fuzz.test.js) achou uma SEGUNDA minhoca presa numa fresta
+  // diferente, oscilando exatamente fora de fase com a primeira: nunca as
+  // duas ficavam "paradas" no mesmo quadro, e o turno nunca conseguia
+  // avançar mesmo com as duas se debatendo.
+  //
+  // A saída é não mexer no estado: `travada` deixa o turno seguir em frente
+  // (via `estaParada()`) sem fingir que a minhoca pousou de verdade — ela
+  // continua balançando na fresta, visualmente, até algo a tire de lá.
+  const semProgresso = w.x === xInicio && w.y === yInicio;
+  w.quadrosResvalandoSemMover = semProgresso ? w.quadrosResvalandoSemMover + 1 : 0;
+  w.travada = w.quadrosResvalandoSemMover >= 3;
 
   // Resvalo em parede ou teto: perde bastante energia, sem quicar como bola.
   const n = terreno.normalEm(w.x, w.y, 0.3);
   const v = refletir(r.estado, n, 0.15, 0.45);
   w.vx = v.vx;
   w.vy = v.vy;
+
+  // Empurrão para fora, ao longo da normal, só quando a normal é
+  // predominantemente HORIZONTAL (parede, não chão/teto): contra uma
+  // parede quase vertical com velocidade quase só vertical (uma cratera
+  // cavada rente à borda do mapa, por exemplo), refletir troca de
+  // velocidade mas quase não muda a posição — a componente normal da
+  // velocidade é minúscula, então quase nada é revertido, e no próximo
+  // quadro a queda esbarra exatamente no mesmo pixel de novo, com a mesma
+  // reflexão, para sempre. Sem sair do lugar, a minhoca nunca escapa desse
+  // ponto fixo. 1 cm é imperceptível no jogo e o bastante para o próximo
+  // passo já testar colisão alhures.
+  //
+  // Numa normal predominantemente VERTICAL (chão/teto) este empurrão é
+  // ativamente prejudicial: ele reinicia a queda livre sempre da mesma
+  // altura artificial (1 cm) a cada quadro, o que produz sempre a mesma
+  // velocidade de impacto — se essa velocidade calhar de ficar acima do
+  // limiar de pouso (`PARADA`), a minhoca ricocheteia para sempre com
+  // amplitude constante em vez de perder energia a cada quique e assentar,
+  // como o teste de estresse (fuzz.test.js) achou.
+  if (Math.abs(n.x) > Math.abs(n.y)) {
+    w.x += n.x * 0.01;
+    w.y += n.y * 0.01;
+  }
   return null;
 }
 
 /** Está em repouso o bastante para o turno poder virar? */
 export function estaParada(w) {
-  return !w.vivo || (w.estado !== 'voando' && Math.abs(w.vx) < 0.05 && Math.abs(w.vy) < 0.05);
+  return (
+    !w.vivo ||
+    w.travada ||
+    (w.estado !== 'voando' && Math.abs(w.vx) < 0.05 && Math.abs(w.vy) < 0.05)
+  );
 }
 
 /** Ponta do cano da arma, de onde o projétil sai. */

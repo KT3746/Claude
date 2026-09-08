@@ -7,6 +7,17 @@
 
 import { avancar, refletir } from './ballistics.js';
 
+/**
+ * Teto de tempo de voo para quem não tem pavio nem assenta (bazuca, morteiro,
+ * míssil guiado). Bem acima de qualquer tiro que acerte alguma coisa dentro
+ * do mapa — mas o míssil guiado voa reto SEM gravidade, e acima do mapa
+ * `terreno.solidoEm` é sempre "ar" não importa quão longe para os lados (é
+ * céu aberto, sem teto): mirado alto o bastante, ele nunca mais encontra
+ * nada sólido e voaria pra sempre, travando ARMA_ATIVA — achado pelo teste
+ * de estresse (fuzz.test.js) mirando o míssil pra cima ao acaso.
+ */
+const TEMPO_VOO_MAX_SEM_ALVO = 12;
+
 export function createProjectile({ arma, x, y, vx = 0, vy = 0, dono = null, pavio }) {
   return {
     arma,
@@ -63,6 +74,10 @@ export function atualizarProjetil(p, terreno, dt, env) {
   if (p.pavio > 0) {
     p.pavio -= dt;
     if (p.pavio <= 0) return 'explodir';
+  }
+
+  if (!p.arma.pavio && !p.arma.assentaSemExplodir && p.tempoVivo > TEMPO_VOO_MAX_SEM_ALVO) {
+    return 'explodir';
   }
 
   if (!r.impacto) {

@@ -256,6 +256,14 @@ export function createMatch({
       const w = efeito.corpo;
       w.vida -= efeito.dano;
       w.piscar = 0.45;
+
+      // Uma explosão perto de quem está pendurado na corda tem de soltá-la
+      // primeiro: `Worm.empurrar` força `estado = 'voando'`, mas sem largar
+      // a corda aqui `estado.corda` continuaria presa e, no próximo quadro,
+      // `Rope.passo` reescreveria x/y/vx/vy por cima do empurrão, anulando
+      // o impacto da explosão.
+      if (w === estado.ativa && estado.corda) largarCorda();
+
       Worm.empurrar(w, efeito.impulso.x, efeito.impulso.y);
       if (efeito.dano > 4) sfx.ai();
     }
@@ -670,6 +678,23 @@ export function createMatch({
     for (let i = estado.tracos.length - 1; i >= 0; i -= 1) {
       estado.tracos[i].vida -= dt;
       if (estado.tracos[i].vida <= 0) estado.tracos.splice(i, 1);
+    }
+
+    // Uma mina armada em outro turno (ou qualquer perigo persistente) pode
+    // matar alguém enquanto o jogador da vez ainda não atirou nada — e
+    // `resolverConsequencias()` só roda de novo em RESOLVENDO, que só chega
+    // depois de um disparo de verdade. Sem isto, essa morte ficaria com
+    // vida negativa mas `vivo` ainda true, parada em pé, por até os 45 s
+    // inteiros do turno. Só durante JOGANDO: nas outras fases o disparo do
+    // próprio jogador já vai levar a uma RESOLVENDO em poucos segundos.
+    //
+    // E se algo morreu, força o fim do turno na hora — sem isso a morte
+    // fica correta (`vivo=false`), mas o jogo só checa vitória/derrota
+    // dentro de RESOLVENDO, que nunca é alcançado enquanto ninguém dispara;
+    // as duas últimas equipes podiam se eliminar mutuamente e a partida
+    // continuar rodando, sem declarar fim, até o relógio do turno zerar.
+    if (turnos.fase === FASE.JOGANDO && resolverConsequencias()) {
+      turnos.forcarFimDeTurno();
     }
 
     turnos.update(dt, contexto());

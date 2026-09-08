@@ -11,6 +11,9 @@ let enabled = true;
 
 function ensure() {
   if (ctx) return ctx;
+  // Fora do navegador (testes em Node, por exemplo) `window` nem existe —
+  // sem esta guarda, qualquer efeito sonoro derrubava quem chamasse.
+  if (typeof window === 'undefined') return null;
   const Ctor = window.AudioContext ?? window.webkitAudioContext;
   if (!Ctor) return null;
   ctx = new Ctor();

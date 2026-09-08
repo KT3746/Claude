@@ -182,3 +182,78 @@ test('não dá para atirar duas vezes no mesmo turno', () => {
   assert.equal(m.disparou({ tipo: 'projetil' }), true);
   assert.equal(m.disparou({ tipo: 'projetil' }), false, 'o segundo tiro tem de ser recusado');
 });
+
+test('as duas últimas equipes se eliminam no mesmo instante: o vencedor é decidido só depois que a resolução para de encontrar mortes', () => {
+  // Simula uma corrente: a primeira chamada de aoResolver "mata" as duas
+  // últimas equipes de uma vez e devolve true (ainda não é definitivo); só
+  // na chamada seguinte, sem mais nada para resolver, é que o contexto
+  // fresco (equipesVivas já refletindo as mortes) pode decidir o fim.
+  let resolvidoUmaVez = false;
+
+  const m = createTurnMachine({
+    tempoPreparo: 0,
+    tempoRecuo: 0,
+    hooks: {
+      aoResolver: () => {
+        if (!resolvidoUmaVez) {
+          resolvidoUmaVez = true;
+          return true;
+        }
+        return false;
+      },
+    },
+  });
+
+  rodar(m, 0.05);
+  m.forcarFimDeTurno(); // -> ASSENTANDO
+
+  // Cada `update` processa exatamente UMA transição, com o contexto que
+  // recebeu naquela chamada — é assim que match.js usa a máquina de verdade
+  // (chama `contexto()` de novo a cada quadro). Por isso o teste avança
+  // passo a passo, não com `rodar`, que reusa o mesmo contexto várias vezes.
+  m.update(1 / 60, PARADO); // ASSENTANDO -> RESOLVENDO
+  assert.equal(m.fase, FASE.RESOLVENDO);
+
+  m.update(1 / 60, PARADO); // aoResolver() mata as duas equipes, devolve true -> ASSENTANDO
+  assert.equal(m.fase, FASE.ASSENTANDO, 'depois de uma morte, volta a esperar tudo assentar');
+  assert.equal(resolvidoUmaVez, true);
+
+  m.update(1 / 60, PARADO); // ASSENTANDO -> RESOLVENDO de novo
+  assert.equal(m.fase, FASE.RESOLVENDO);
+
+  // Só agora chega o contexto fresco, já refletindo o pós-morte.
+  m.update(1 / 60, { tudoParado: true, projeteisAtivos: 0, equipesVivas: 0 });
+
+  assert.equal(m.fase, FASE.FIM, 'com ninguém vivo, a partida tem de terminar');
+  assert.equal(m.vencedor, null, 'nenhuma equipe sobrou: empate, não vitória de ninguém');
+});
+
+test('uma equipe sobrevive por pouco: o vencedor é o que o contexto fresco diz depois da última morte', () => {
+  const vencedora = { nome: 'Sobreviventes' };
+  let resolvidoUmaVez = false;
+
+  const m = createTurnMachine({
+    tempoPreparo: 0,
+    tempoRecuo: 0,
+    hooks: {
+      aoResolver: () => {
+        if (!resolvidoUmaVez) {
+          resolvidoUmaVez = true;
+          return true;
+        }
+        return false;
+      },
+    },
+  });
+
+  rodar(m, 0.05);
+  m.forcarFimDeTurno();
+  m.update(1 / 60, PARADO); // ASSENTANDO -> RESOLVENDO
+  m.update(1 / 60, PARADO); // primeira morte -> ASSENTANDO
+  m.update(1 / 60, PARADO); // ASSENTANDO -> RESOLVENDO de novo
+
+  m.update(1 / 60, { tudoParado: true, projeteisAtivos: 0, equipesVivas: 1, equipeVencedora: vencedora });
+
+  assert.equal(m.fase, FASE.FIM);
+  assert.equal(m.vencedor, vencedora);
+});
