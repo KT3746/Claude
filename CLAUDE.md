@@ -98,10 +98,8 @@ Bugs já corrigidos: ângulo da flecha cravada, arrasto perdido ao segurar o
 clique entre estados, botão errado na vitória do último nível, e o toque que
 não respondia em nenhum botão.
 
-**Pendência aberta**: depois da correção do toque (commit `bded752`), o usuário
-relatou que no celular dele *ainda* não respondia. Descobriu-se depois que o
-repositório tinha sido renomeado de novo nesse meio-tempo (para `Claude`),
-então o link que ele tinha estava morto — a causa mais provável do relato, e
-não uma falha da correção. O bug do `preventDefault` está comprovadamente
-corrigido e verificado com toque real. Confirme com ele no link atual antes de
-procurar qualquer outra causa.
+**Nenhuma pendência aberta.** Houve um relato de que o toque não respondia
+mesmo depois da correção (commit `bded752`), mas a causa era o link antigo: o
+repositório tinha sido renomeado no meio-tempo e o navegador mostrava uma cópia
+em cache da tela, sem o JavaScript. Confirmado pelo usuário funcionando no link
+atual. A correção do `preventDefault` está verificada com toque real.
