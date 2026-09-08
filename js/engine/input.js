@@ -28,10 +28,19 @@ export function createInput(canvas) {
   }
 
   function onUp(event) {
+    // `touchend`/`touchcancel`/`mouseup` são ouvidos na window (não no canvas)
+    // para o arrasto terminar mesmo se o dedo/mouse sair do canvas antes de
+    // soltar. Mas isso também captura o toque de soltar em QUALQUER lugar da
+    // página — inclusive um botão do menu. Cancelar um `touchend` suprime o
+    // `click` sintético que o navegador dispararia em seguida: sem essa
+    // guarda, nenhum botão da interface responde a toque, só a mouse.
+    // Só cancelamos o evento quando ele encerra um arrasto que É nosso
+    // (começou com `pointer.down = true`, ou seja, com toque no canvas).
+    const wasOurs = pointer.down;
     positionFrom(event);
     if (pointer.down) pointer.justReleased = true;
     pointer.down = false;
-    if (event.cancelable) event.preventDefault();
+    if (wasOurs && event.cancelable) event.preventDefault();
   }
 
   canvas.addEventListener('mousedown', onDown);
