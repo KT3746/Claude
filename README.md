@@ -1,5 +1,9 @@
 # Arqueiro
 
+> **Neste repositório há dois jogos.** Este README é do **Arqueiro**. O outro é
+> o [**Campo Minado**](campo-minado/README.md), em `/campo-minado/` — com modo
+> sem chute, recordes e teclado completo. Mesma casca, sem dependências.
+
 Jogo de arco e flecha em HTML5 Canvas: mire, leia o vento, acerte o X.
 Roda direto no navegador, no computador e no celular. **Sem build, sem
 dependências, sem instalar nada.**
