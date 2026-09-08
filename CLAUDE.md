@@ -1,8 +1,17 @@
 # Arqueiro — contexto do projeto
 
 Jogo de arco e flecha em HTML5 Canvas, em português. Estático: **sem build, sem
-dependências, sem `npm install`**. Publicado em
-https://kt3746.github.io/Arco-e-Flecha/ via GitHub Actions.
+dependências, sem `npm install`**. Publicado no GitHub Pages via GitHub Actions.
+
+**Atenção: o usuário renomeia o repositório com frequência.** Já foi
+`desktop-tutorial`, depois `Arco-e-Flecha`, depois `Claude`. O identificador
+interno que nunca muda é **1342942892**. Renomear muda o endereço do jogo
+(`https://kt3746.github.io/<nome-atual>/`) e derruba o link antigo — se ele
+disser que o jogo abre mas não responde a cliques, **a primeira suspeita é que
+ele está num link antigo**, com o navegador mostrando uma cópia em cache da
+tela sem o JavaScript. Confirme o nome atual antes de passar qualquer link, e
+pegue o endereço real do último deploy em
+`GET /repos/{owner}/{repo}/deployments/{id}/statuses` → `environment_url`.
 
 O usuário é **iniciante em programação e usa celular Android**. Explique em
 português, sem jargão, e prefira fazer a ação a mandar ele fazer — só peça
@@ -90,9 +99,9 @@ clique entre estados, botão errado na vitória do último nível, e o toque que
 não respondia em nenhum botão.
 
 **Pendência aberta**: depois da correção do toque (commit `bded752`), o usuário
-relatou que no celular dele *ainda* não respondia. A hipótese principal é cache
-do Chrome guardando o `input.js` antigo; ele ia testar numa aba anônima e
-reportar. Se em aba anônima **funcionar**, era cache — explique como limpar o
-cache do site. Se **não funcionar**, o problema é outro e a investigação
-recomeça (o bug do `preventDefault` está comprovadamente corrigido e verificado
-com toque real).
+relatou que no celular dele *ainda* não respondia. Descobriu-se depois que o
+repositório tinha sido renomeado de novo nesse meio-tempo (para `Claude`),
+então o link que ele tinha estava morto — a causa mais provável do relato, e
+não uma falha da correção. O bug do `preventDefault` está comprovadamente
+corrigido e verificado com toque real. Confirme com ele no link atual antes de
+procurar qualquer outra causa.
