@@ -142,12 +142,17 @@ export function createScreens(root, actions) {
 
       if (!success) {
         box.append(el('p', 'hint-text', `Faça ${data.targetScore} pontos para destravar o próximo nível.`));
+      } else if (data.isLast) {
+        box.append(el('p', 'hint-text', 'Você zerou o Arqueiro! Pode repetir qualquer nível para melhorar as estrelas.'));
       }
 
       const row = el('div', 'actions');
       if (success && !data.isLast) {
         row.append(button('Próximo nível', () => actions.playNext(), 'primary'));
         row.append(button('Repetir', () => actions.restart()));
+      } else if (success) {
+        // Último nível vencido: não há "tentar de novo" a fazer, só melhorar.
+        row.append(button('Repetir', () => actions.restart(), 'primary'));
       } else {
         row.append(button('Tentar de novo', () => actions.restart(), 'primary'));
       }
