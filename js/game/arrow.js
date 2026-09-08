@@ -15,9 +15,14 @@ export function createArrow(state) {
     alive: true,
     /** Motivo do fim do voo: 'target' | 'obstacle' | 'ground' | 'out' */
     result: null,
+    /** Ângulo congelado no instante do impacto (ver `stop`). */
+    finalHeading: 0,
 
+    // `stop()` zera vx/vy para a flecha ficar parada — por isso o ângulo real
+    // do impacto precisa ser lido ANTES disso e guardado à parte; sem isso,
+    // toda flecha cravada renderizaria horizontal (atan2(0,0) = 0).
     get heading() {
-      return headingOf(this);
+      return this.alive ? headingOf(this) : this.finalHeading;
     },
 
     /**
@@ -92,6 +97,7 @@ export function createArrow(state) {
     },
 
     stop(result, x, y) {
+      this.finalHeading = headingOf(this);
       this.alive = false;
       this.result = result;
       this.x = x;

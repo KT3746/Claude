@@ -192,7 +192,12 @@ function handleDiscreteInput() {
   }
 
   if (level.canAim) {
-    if (input.pointer.justPressed) {
+    // `pointer.down` (não só `justPressed`) porque o botão pode já estar
+    // pressionado de antes: por exemplo, se o jogador segura o clique
+    // enquanto a flecha anterior ainda está em voo/assentando, o "clique"
+    // já aconteceu e nunca dispararia `justPressed` de novo — sem isso, o
+    // arco simplesmente não responde até soltar e clicar outra vez.
+    if (!level.bow.dragging && input.pointer.down) {
       level.bow.beginDrag();
       level.bow.updateDrag(input.pointer, camera);
       sfx.draw(level.bow.power);
@@ -277,7 +282,7 @@ function drawMenuBackdrop() {
 
 // Gancho de depuração: permite dirigir o jogo pelo console (e pelos testes
 // de navegador) sem tocar no resto da arquitetura.
-window.__game = { state, startLevel, startPractice, toMenu, pause, resume, camera };
+window.__game = { state, startLevel, startPractice, toMenu, pause, resume, camera, input };
 
 loop.start();
 toMenu();
