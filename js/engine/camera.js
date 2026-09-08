@@ -18,6 +18,12 @@ export function createCamera() {
     shakeY: 0,
     smoothing: 6, // maior = mais rápido para alcançar o alvo
     shakeEnabled: true,
+    bounds: null, // {minX, maxX, minY, maxY} em metros — limites do mapa
+
+    /** Trava a câmera dentro do mapa. `null` solta de novo. */
+    setBounds(bounds) {
+      cam.bounds = bounds;
+    },
 
     resize(width, height) {
       cam.width = width;
@@ -49,6 +55,7 @@ export function createCamera() {
       cam.x += (cam.targetX - cam.x) * t;
       cam.y += (cam.targetY - cam.y) * t;
       cam.scale += (cam.targetScale - cam.scale) * t;
+      clampToBounds();
 
       cam.shake = Math.max(0, cam.shake - dt * 2.2);
       const magnitude = cam.shake * cam.shake * 14;
@@ -80,6 +87,24 @@ export function createCamera() {
       return cam.height / 2 / cam.scale;
     },
   };
+
+  /**
+   * Mantém a vista dentro do mapa. Se o mapa for menor que a tela naquele
+   * eixo, centraliza — é melhor ver a borda no meio do que grudada num canto.
+   */
+  function clampToBounds() {
+    const b = cam.bounds;
+    if (!b) return;
+
+    const meiaL = cam.halfWidth;
+    const meiaA = cam.halfHeight;
+
+    if (b.maxX - b.minX <= meiaL * 2) cam.x = (b.minX + b.maxX) / 2;
+    else cam.x = Math.max(b.minX + meiaL, Math.min(b.maxX - meiaL, cam.x));
+
+    if (b.maxY - b.minY <= meiaA * 2) cam.y = (b.minY + b.maxY) / 2;
+    else cam.y = Math.max(b.minY + meiaA, Math.min(b.maxY - meiaA, cam.y));
+  }
 
   return cam;
 }

@@ -3,7 +3,7 @@
  * Coordenadas em metros, no mesmo espaço do mundo.
  */
 
-const MAX = 400;
+const MAX = 1200;
 
 export function createParticles() {
   const pool = Array.from({ length: MAX }, () => ({

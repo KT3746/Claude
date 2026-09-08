@@ -51,9 +51,18 @@ export function createInput(canvas) {
   window.addEventListener('touchend', onUp, { passive: false });
   window.addEventListener('touchcancel', onUp, { passive: false });
 
+  /** O jogo não escuta teclado enquanto alguém digita num campo. */
+  function digitando(event) {
+    const alvo = event.target;
+    if (!alvo || !alvo.tagName) return false;
+    const tag = alvo.tagName.toLowerCase();
+    return tag === 'input' || tag === 'textarea' || tag === 'select' || alvo.isContentEditable;
+  }
+
   window.addEventListener('keydown', (event) => {
     // Não sequestra atalhos do navegador nem a navegação por Tab.
     if (event.metaKey || event.ctrlKey || event.altKey) return;
+    if (digitando(event)) return;
     const code = event.code;
     if (!keys.has(code)) pressedThisFrame.add(code);
     keys.add(code);
@@ -94,4 +103,13 @@ const HANDLED_KEYS = new Set([
   'KeyA',
   'KeyS',
   'KeyD',
+  'KeyN',
+  'Backspace',
+  'Digit1',
+  'Digit2',
+  'Digit3',
+  'Digit4',
+  'Digit5',
+  'BracketLeft',
+  'BracketRight',
 ]);
